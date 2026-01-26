@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusPulse</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'],
+            },
+            colors: {
+              cyber: {
+                dark: "#020617",
+                panel: "rgba(15, 23, 42, 0.6)",
+                neon: "#00f3ff",
+                purple: "#bd00ff",
+                pink: "#ff0099",
+                green: "#00ff9d",
+              }
+            },
+            backgroundImage: {
+              'grid-pattern': "linear-gradient(to right, #1e293b 1px, transparent 1px), linear-gradient(to bottom, #1e293b 1px, transparent 1px)",
+              'radiant-dark': "radial-gradient(circle at 50% -20%, #1e1b4b, #020617)",
+            },
+            animation: {
+              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'glow': 'glow 2s ease-in-out infinite alternate',
+            },
+            keyframes: {
+              glow: {
+                '0%': { boxShadow: '0 0 5px #00f3ff, 0 0 10px #00f3ff' },
+                '100%': { boxShadow: '0 0 20px #00f3ff, 0 0 30px #bd00ff' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      /* Global Styles Injection */
+      body {
+        background-color: #020617;
+        color: white;
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(0, 243, 255, 0.2);
+        border-radius: 2px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 243, 255, 0.4);
+      }
+    </style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "framer-motion": "https://esm.sh/framer-motion@10.16.4?deps=react@18.2.0",
+    "chart.js": "https://esm.sh/chart.js@4.4.0",
+    "react-chartjs-2": "https://esm.sh/react-chartjs-2@5.2.0?deps=react@18.2.0,chart.js@4.4.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "tailwindcss": "https://esm.sh/tailwindcss@^4.1.18",
+    "next-intl/": "https://esm.sh/next-intl@^4.7.0/",
+    "next": "https://esm.sh/next@^16.1.2",
+    "next/": "https://esm.sh/next@^16.1.2/",
+    "next-intl": "https://esm.sh/next-intl@^4.7.0",
+    "swr": "https://esm.sh/swr@2.2.4?deps=react@18.2.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.37.0",
+    "@prisma/client": "https://esm.sh/@prisma/client@^7.2.0",
+    "next-auth/": "https://esm.sh/next-auth@^4.24.13/",
+    "next-auth": "https://esm.sh/next-auth@^4.24.13",
+    "process": "https://esm.sh/process@^0.11.10",
+    "bcryptjs": "https://esm.sh/bcryptjs@^3.0.3",
+    "@next-auth/prisma-adapter": "https://esm.sh/@next-auth/prisma-adapter@^1.0.7",
+    "rss-parser": "https://esm.sh/rss-parser@^3.13.0"
+  }
+}
+</script>
+    <script type="module" src="./index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

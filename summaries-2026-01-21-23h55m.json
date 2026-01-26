@@ -1,0 +1,26 @@
+{
+  "success": true,
+  "summaries": [
+    {
+      "entity_slug": "elon-musk",
+      "entity_name": "Elon Musk",
+      "summary": "Elon Musk had 17 news items in the last 12 hours.",
+      "item_count": 17,
+      "generated_at": "2026-01-21T15:55:19.578Z",
+      "time_range": {
+        "start": "2026-01-21T03:55:16.521Z",
+        "end": "2026-01-21T15:55:16.521Z"
+      }
+    }
+  ],
+  "metadata": {
+    "generated_at": "2026-01-21T15:55:16.521Z",
+    "time_range": {
+      "start": "2026-01-21T03:55:16.521Z",
+      "end": "2026-01-21T15:55:16.521Z"
+    },
+    "total_entities": 1,
+    "entities_with_summaries": 1,
+    "total_dynamics": 17
+  }
+}
