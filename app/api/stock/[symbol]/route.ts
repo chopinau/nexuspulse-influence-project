@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { symbol: string } }
+  props: { params: Promise<{ symbol: string }> }
 ) {
+  const params = await props.params;
   const symbol = params.symbol.toUpperCase();
 
   // Yahoo Finance public chart endpoint

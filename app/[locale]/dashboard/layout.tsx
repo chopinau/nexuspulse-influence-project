@@ -6,11 +6,12 @@ import { ReactNode } from "react";
 
 export default async function DashboardLayout({
   children,
-  params: { locale }
+  params
 }: {
   children: ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
+  const { locale } = await params;
   const session = await getServerSession(authOptions);
 
   if (!session) {

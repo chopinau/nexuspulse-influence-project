@@ -285,7 +285,7 @@ export default function LiveNewsFeed({ slug, name, initialItems = [], showSentim
         },
         (payload) => {
           console.log('[LiveNewsFeed] Realtime update received:', payload.new);
-          setDisplayItems((prev) => [payload.new, ...prev].slice(0, 20));
+          setDisplayItems((prev) => [payload.new as DynamicUpdate, ...prev].slice(0, 20));
         }
       )
       .subscribe();

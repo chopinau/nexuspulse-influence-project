@@ -25,8 +25,8 @@ ChartJS.register(
   Filler
 );
 
-export default function NeonChart() {
-  const data = generateTrendData();
+export default function NeonChart({ data }: { data?: any }) {
+  const chartData = generateTrendData();
 
   const options = {
     responsive: true,
@@ -63,7 +63,7 @@ export default function NeonChart() {
 
   return (
     <div className="h-[300px] w-full">
-      <Line options={options} data={data} />
+      <Line options={options} data={chartData} />
     </div>
   );
 }

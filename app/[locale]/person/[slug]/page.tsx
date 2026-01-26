@@ -10,10 +10,10 @@ import StockCard from '@/components/StockCard';
 import PaidTeaser from '@/components/PaidTeaser';
 
 interface Props {
-  params: {
+  params: Promise<{
     slug: string;
     locale: string;
-  };
+  }>;
 }
 
 async function getEntityData(slug: string) {
@@ -37,7 +37,8 @@ async function getEntityData(slug: string) {
   return { config, initialDynamics: dynamics || [] };
 }
 
-export default async function EntityDetailPage({ params: { slug, locale } }: Props) {
+export default async function EntityDetailPage({ params }: Props) {
+  const { slug, locale } = await params;
   const t = await getTranslations({ locale, namespace: 'entity' });
   const data = await getEntityData(slug);
 

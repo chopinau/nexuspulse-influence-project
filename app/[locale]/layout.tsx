@@ -3,7 +3,7 @@ import { Inter, Noto_Sans_SC } from "next/font/google";
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import Navbar from "@/components/Navbar";
-import "../../globals.css";
+import "@/app/globals.css";
 import { ReactNode } from "react";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -16,11 +16,12 @@ export const metadata: Metadata = {
 
 export default async function LocaleLayout({
   children,
-  params: { locale }
+  params
 }: {
   children: ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
+  const { locale } = await params;
   const messages = await getMessages();
 
   return (
