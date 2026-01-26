@@ -1,0 +1,3 @@
+{
+  "/api/generate-12h-summary/route": "app/api/generate-12h-summary/route.js"
+}

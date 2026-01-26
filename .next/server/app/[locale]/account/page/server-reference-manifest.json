@@ -1,0 +1,35 @@
+{
+  "node": {
+    "009cff8cef65c0df2e124fbf1ddd0cb4c4b62048f8": {
+      "workers": {
+        "app/[locale]/account/page": {
+          "moduleId": 98465,
+          "async": false,
+          "exportedName": "getUserDashboardData",
+          "filename": "app/actions.ts"
+        }
+      },
+      "layer": {
+        "app/[locale]/account/page": "rsc"
+      },
+      "exportedName": "getUserDashboardData",
+      "filename": "app/actions.ts"
+    },
+    "401e3955facbcbbd4cc4a6b49d9529e4f865ad866b": {
+      "workers": {
+        "app/[locale]/account/page": {
+          "moduleId": 98465,
+          "async": false,
+          "exportedName": "generateAIInsight",
+          "filename": "app/actions.ts"
+        }
+      },
+      "layer": {
+        "app/[locale]/account/page": "rsc"
+      },
+      "exportedName": "generateAIInsight",
+      "filename": "app/actions.ts"
+    }
+  },
+  "edge": {}
+}
