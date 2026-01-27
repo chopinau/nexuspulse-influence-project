@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import Navbar from "@/components/Navbar";
 import "@/app/globals.css";
+// Ensure globals.css is loaded for Vercel deployment
 import { ReactNode } from "react";
 
 const inter = Inter({ subsets: ["latin"] });
