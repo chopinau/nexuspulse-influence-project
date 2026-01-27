@@ -1,3 +1,0 @@
-{
-  "/api/stock/[symbol]/route": "app/api/stock/[symbol]/route.js"
-}
