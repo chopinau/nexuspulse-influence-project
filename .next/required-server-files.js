@@ -52,6 +52,7 @@ self.__SERVER_FILES_MANIFEST={
         "image/webp"
       ],
       "maximumRedirects": 3,
+      "maximumResponseBody": 50000000,
       "dangerouslyAllowLocalIP": false,
       "dangerouslyAllowSVG": false,
       "contentSecurityPolicy": "script-src 'none'; frame-src 'none'; sandbox;",
