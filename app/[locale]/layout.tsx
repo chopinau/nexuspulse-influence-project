@@ -3,7 +3,7 @@ import { Inter, Noto_Sans_SC } from "next/font/google";
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import Navbar from "@/components/Navbar";
-import "@/app/globals.css";
+import "@/app/globals.css"; // 强制使用别名，不要用 ../../
 // Ensure globals.css is loaded for Vercel deployment
 import { ReactNode } from "react";
 
