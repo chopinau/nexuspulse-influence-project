@@ -14,20 +14,26 @@ export default function LiveDashboardGrid() {
   // Fetch Live Data from Supabase
   const { data: configData, error, isLoading } = useSWR('dashboard-config', async () => {
     try {
-      console.log('[LiveDashboardGrid] Fetching dashboard data from Supabase...');
-      
       // Fetch all config data from Supabase using the centralized client
       const { data, error: supabaseError } = await supabase.from('config').select('*');
       
       if (supabaseError) {
-        console.warn('[LiveDashboardGrid] Supabase error, falling back to mock data:', supabaseError.message);
-        throw supabaseError;
+        // Fallback to mock data
+        return ENTITIES.map(e => ({
+          id: e.id,
+          slug: e.slug,
+          name: e.name,
+          type: e.type,
+          heatindex: e.heatIndex,
+          trend: e.trend,
+          stocksymbol: e.stockSymbol,
+          tags: e.tags.join(','),
+          summary: ''
+        }));
       }
       
-      console.log('[LiveDashboardGrid] Data loaded successfully from Supabase:', data?.length, 'entities found');
       return data;
     } catch (error) {
-      console.warn('[LiveDashboardGrid] Fetch Error/Fallback:', error);
       // Fallback to mock data
       return ENTITIES.map(e => ({
         id: e.id,
@@ -45,16 +51,10 @@ export default function LiveDashboardGrid() {
     refreshInterval: 30000, // Refresh every 30s
     revalidateOnFocus: true,
     errorRetryCount: 3,
-    errorRetryInterval: 5000,
-    onError: (err, key) => {
-      console.error('[LiveDashboardGrid] SWR Error:', err, { key });
-    }
+    errorRetryInterval: 5000
   });
 
-  // 添加SWR日志记录
-  console.log('SWR 数据：', configData);  // 成功时打印数组 
-  console.log('SWR 错误：', error);  // 打印错误信息 
-  console.log('加载中：', isLoading);
+
 
   // Handle Loading State
   if (isLoading) {
