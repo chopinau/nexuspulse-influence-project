@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import Parser from 'rss-parser';
 import { supabaseServer } from '@/lib/supabaseServer';
 
+export const dynamic = 'force-dynamic'; // Prevent build-time execution
+
 // Initialize Enhanced RSS Parser with better error handling and timeouts
 const parser = new Parser({
   timeout: 10000, // Increased timeout to 10s for better reliability

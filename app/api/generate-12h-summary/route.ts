@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabaseServer';
 
+export const dynamic = 'force-dynamic'; // Prevent build-time execution
+
 /**
  * API endpoint to generate 12-hour summaries for all entities
  * This endpoint fetches recent dynamics data and generates summaries using the AI service
@@ -98,56 +100,24 @@ export async function POST(request: NextRequest) {
             summary: aiResult.summary,
             item_count: entityDynamics.length,
             generated_at: new Date().toISOString(),
-            time_range: {
-              start: twelveHoursAgo.toISOString(),
-              end: now.toISOString()
-            }
           });
-          
-          console.log(`[API] Generated summary for ${entity.name}: ${aiResult.summary.slice(0, 50)}...`);
-        } else {
-          console.error(`[API] AI summary failed for ${entity.name}:`, aiResult.error);
         }
-      } catch (aiError) {
-        console.error(`[API] AI summary exception for ${entity.name}:`, aiError);
+      } catch (err) {
+        console.error(`[API] Failed to generate summary for ${entity.name}:`, err);
       }
     }
     
-    console.log('[API] Generated summaries for', summaries.length, 'entities');
-    
-    // 6. Save summaries to Supabase (optional, you can implement this if needed)
-    // For now, we'll just return the summaries
-    
-    return NextResponse.json({
-      success: true,
-      summaries,
-      metadata: {
-        generated_at: now.toISOString(),
-        time_range: {
-          start: twelveHoursAgo.toISOString(),
-          end: now.toISOString()
-        },
-        total_entities: entities?.length || 0,
-        entities_with_summaries: summaries.length,
-        total_dynamics: dynamics?.length || 0
-      }
+    return NextResponse.json({ 
+      success: true, 
+      count: summaries.length,
+      summaries 
     });
     
   } catch (error) {
-    console.error('[API] 12h summary generation failed:', error);
+    console.error('[API] 12-hour summary error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal Server Error' },
       { status: 500 }
     );
   }
-}
-
-export async function GET(request: NextRequest) {
-  // Allow GET requests for testing
-  return NextResponse.json({
-    message: 'Use POST method to generate 12-hour summaries',
-    endpoint: '/api/generate-12h-summary',
-    method: 'POST',
-    description: 'Generate 12-hour summaries for all entities'
-  });
 }

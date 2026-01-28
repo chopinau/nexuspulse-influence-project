@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { canUseAI, incrementAIUsage } from '@/lib/membership';
 import { GoogleGenAI } from "@google/genai";
 
+export const dynamic = 'force-dynamic'; // Prevent build-time execution
+
 export async function POST(request: NextRequest) {
   try {
     // 1. AUTHENTICATE via Session (More secure than headers)
