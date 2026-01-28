@@ -4,7 +4,7 @@ import Navbar from './components/Navbar';
 import Home from './components/Home';
 import Premium from './components/Premium';
 import EntityDetail from './components/EntityDetail';
-import { AppProvider, useAppContext } from './lib/i18nMock';
+import { AppProvider, useAppContext } from './components/AppProvider';
 
 function AppLayout() {
   const { pathname } = useAppContext();
