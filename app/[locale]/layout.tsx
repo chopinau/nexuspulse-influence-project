@@ -33,10 +33,12 @@ export default async function LocaleLayout({
         <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 -z-10 mix-blend-overlay" />
         
         <NextIntlClientProvider messages={messages}>
-          <Navbar />
-          <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pb-20">
-            {children}
-          </main>
+          <AppProvider>
+            <Navbar />
+            <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pb-20">
+              {children}
+            </main>
+          </AppProvider>
         </NextIntlClientProvider>
       </body>
     </html>
