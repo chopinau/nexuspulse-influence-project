@@ -1,32 +1,42 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, ReactNode, useState } from 'react';
 
-export type Locale = 'en' | 'zh';
-
+// Define the shape of your context
 interface AppContextType {
-  locale: Locale;
-  setLocale: (l: Locale) => void;
+  locale: string;
+  setLocale: (locale: string) => void;
   pathname: string;
-  setPathname: (p: string) => void;
+  setPathname: (pathname: string) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
-export function AppProvider({ children }: { children?: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>('en');
-  // Default to root
-  const [pathname, setPathname] = useState<string>('/');
+export type Locale = string;
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  // Initialize state
+  const [locale, setLocale] = useState('en');
+  const [pathname, setPathname] = useState('/');
+
+  const value = {
+    locale,
+    setLocale,
+    pathname,
+    setPathname
+  };
 
   return (
-    <AppContext.Provider value={{ locale, setLocale, pathname, setPathname }}>
+    <AppContext.Provider value={value}>
       {children}
     </AppContext.Provider>
   );
 }
 
-export function useAppContext() {
+export const useAppContext = () => {
   const context = useContext(AppContext);
-  if (!context) throw new Error("useAppContext must be used within AppProvider");
+  if (!context) {
+    throw new Error('useAppContext must be used within AppProvider');
+  }
   return context;
-}
+};

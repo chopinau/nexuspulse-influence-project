@@ -1,4 +1,9 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+'use client';
+
+import React from 'react';
+import { useAppContext, Locale } from '@/components/AppProvider';
+
+export { AppProvider, useAppContext } from '@/components/AppProvider';
 
 // Translation Data
 const messages = {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Noto_Sans_SC } from "next/font/google";
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
+import { AppProvider } from '@/components/AppProvider';
 import Navbar from "@/components/Navbar";
 import "./globals.css"; // Co-located file to prevent path resolution errors
 // Ensure globals.css is loaded for Vercel deployment
