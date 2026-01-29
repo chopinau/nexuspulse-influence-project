@@ -273,18 +273,18 @@ def generate_report(
             if event_type == "stage":
                 stage = payload.get("stage", "")
                 if stage == "agent_start":
-                    logger.info(f"开始生成报告: {payload.get("report_id", "")}")
+                    logger.info(f"开始生成报告: {payload.get('report_id', '')}")
                 elif stage == "template_selected":
-                    logger.info(f"✓ 已选择模板: {payload.get("template", "")}")
+                    logger.info(f"✓ 已选择模板: {payload.get('template', '')}")
                 elif stage == "template_sliced":
-                    logger.info(f"✓ 模板解析完成，共 {payload.get("section_count", 0)} 个章节")
+                    logger.info(f"✓ 模板解析完成，共 {payload.get('section_count', 0)} 个章节")
                 elif stage == "layout_designed":
                     logger.info(f"✓ 文档布局设计完成")
-                    logger.info(f"  标题: {payload.get("title", "")}")
+                    logger.info(f"  标题: {payload.get('title', '')}")
                 elif stage == "word_plan_ready":
-                    logger.info(f"✓ 篇幅规划完成，目标章节数: {payload.get("chapter_targets", 0)}")
+                    logger.info(f"✓ 篇幅规划完成，目标章节数: {payload.get('chapter_targets', 0)}")
                 elif stage == "chapters_compiled":
-                    logger.info(f"✓ 章节生成完成，共 {payload.get("chapter_count", 0)} 个章节")
+                    logger.info(f"✓ 章节生成完成，共 {payload.get('chapter_count', 0)} 个章节")
                 elif stage == "html_rendered":
                     logger.info(f"✓ HTML 渲染完成")
                 elif stage == "report_saved":
@@ -299,11 +299,11 @@ def generate_report(
                     attempt = payload.get("attempt", 1)
                     warning = payload.get("warning", "")
                     if warning:
-                        logger.warning(f"  ✓ 章节完成: {title} (第 {attempt} 次尝试，{payload.get("warningMessage", "")})")
+                        logger.warning(f"  ✓ 章节完成: {title} (第 {attempt} 次尝试，{payload.get('warningMessage', '')})")
                     else:
                         logger.success(f"  ✓ 章节完成: {title}")
             elif event_type == "error":
-                logger.error(f"错误: {payload.get("message", "")}")
+                logger.error(f"错误: {payload.get('message', '')}")
 
         # 生成报告
         logger.info("开始生成报告，这可能需要几分钟时间...")
