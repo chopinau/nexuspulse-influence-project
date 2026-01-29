@@ -54,16 +54,22 @@ def call_deepseek(query, api_key, base_url=DEFAULT_API_BASE, model=DEFAULT_MODEL
     }
 
     # 构建提示词
-    system_prompt = """你是一个专业的市场情报分析师。请根据用户提供的主题，撰写一份详细的市场情报简报。
-报告应包含以下部分：
-1. 核心摘要 (Executive Summary)
-2. 关键市场动态 (Key Market Dynamics)
-3. 风险与机遇 (Risks & Opportunities)
-4. 结论 (Conclusion)
+    system_prompt = """你是一位世界顶尖的市场情报分析师（Top Market Analyst），擅长通过深度分析生成极具洞察力的行业简报。
+请根据用户提供的【查询主题】，撰写一份结构严谨、数据详实、排版精美的 Markdown 简报。
 
-请使用 Markdown 格式输出。"""
+报告要求：
+1. **深度与广度**：不要泛泛而谈，需包含具体的技术细节、市场动向或关键人物言论。
+2. **结构清晰**：必须包含以下模块：
+   - 📊 **Executive Summary** (核心摘要)：300字以内，直击要点。
+   - 🚀 **Key Market Dynamics** (关键动态)：列出3-5个最重要的近期事件或趋势。
+   - 💡 **Strategic Insights** (战略洞察)：深度分析背后的商业逻辑或技术影响。
+   - ⚠️ **Risks & Opportunities** (风险与机遇)：客观评估。
+3. **格式规范**：
+   - 使用 Markdown 语法（# 标题, **加粗**, - 列表）。
+   - 适当使用 Emoji 图标增加可读性。
+   - 语气专业、客观、犀利。"""
 
-    user_prompt = f"请分析以下主题的最新市场情报：{query}"
+    user_prompt = f"请根据当前最新的动态，针对以下主题生成深度分析简报：\n\n【{query}】"
 
     payload = {
         "model": model,

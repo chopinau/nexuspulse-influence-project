@@ -34,4 +34,4 @@ jobs:
         REPORT_ENGINE_API_KEY: ${{ secrets.REPORT_ENGINE_API_KEY }}
       run: |
         cd python_backend
-        python report_engine_only.py --auto
+        python report_engine_only.py --query "Elon Musk Tesla" --auto
