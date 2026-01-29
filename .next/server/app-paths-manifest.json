@@ -1,13 +1,6 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
-  "/api/stock/[symbol]/route": "app/api/stock/[symbol]/route.js",
-  "/api/ai/summary/route": "app/api/ai/summary/route.js",
-  "/api/generate-12h-summary/route": "app/api/generate-12h-summary/route.js",
-  "/api/dynamics/route": "app/api/dynamics/route.js",
-  "/[locale]/account/page": "app/[locale]/account/page.js",
   "/[locale]/page": "app/[locale]/page.js",
-  "/[locale]/person/[slug]/page": "app/[locale]/person/[slug]/page.js",
   "/[locale]/premium/page": "app/[locale]/premium/page.js",
-  "/[locale]/dashboard/page": "app/[locale]/dashboard/page.js"
+  "/intel/page": "app/intel/page.js"
 }

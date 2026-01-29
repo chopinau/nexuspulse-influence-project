@@ -1,0 +1,11 @@
+loguru
+requests
+python-dotenv
+pydantic
+pydantic-settings
+openai
+tenacity
+jinja2
+weasyprint
+supabase
+matplotlib
