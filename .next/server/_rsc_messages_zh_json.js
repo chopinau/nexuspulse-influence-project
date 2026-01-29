@@ -1,0 +1,25 @@
+"use strict";
+/*
+ * ATTENTION: An "eval-source-map" devtool has been used.
+ * This devtool is neither made for production nor for readable output files.
+ * It uses "eval()" calls to create a separate source file with attached SourceMaps in the browser devtools.
+ * If you are trying to read the output file, select a different devtool (https://webpack.js.org/configuration/devtool/)
+ * or disable the default devtool with "devtool: false".
+ * If you are looking for production-ready output files, see mode: "production" (https://webpack.js.org/configuration/mode/).
+ */
+exports.id = "_rsc_messages_zh_json";
+exports.ids = ["_rsc_messages_zh_json"];
+exports.modules = {
+
+/***/ "(rsc)/./messages/zh.json":
+/*!**************************!*\
+  !*** ./messages/zh.json ***!
+  \**************************/
+/***/ ((module) => {
+
+module.exports = /*#__PURE__*/JSON.parse('{"nav":{"home":"控制台","insights":"深度洞察","enterprise":"企业版","login":"登录"},"home":{"hero":{"title":"实时影响力追踪系统","subtitle":"为投资者和品牌量化数字影响力与市场情绪。"},"stats":{"heatIndex":"热度指数","trend":"24小时趋势","ranking":"全球排名"},"signals":{"title":"今日投资信号","upgrade":"解锁AI分析","teaser":"马斯克关于卫星的言论可能提振汽车股 —— 升级以获取完整报告。"},"dynamics":{"title":"实时动态","viewAll":"查看全部"}},"common":{"loading":"正在初始化神经链接...","updated":"最后更新","positive":"利好","negative":"利空","neutral":"中性"},"entity":{"heat":"热度指数","trend":"趋势 (24h)","news":"最新信号","back":"返回控制台"},"stock":{"symbol":"市场代码","delayed":"数据延迟15分钟","unavailable":"市场数据暂不可用"}}');
+
+/***/ })
+
+};
+;

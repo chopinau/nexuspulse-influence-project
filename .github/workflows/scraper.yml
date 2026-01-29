@@ -1,0 +1,37 @@
+name: Hourly Scraper & Report
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Every hour
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        # Install system dependencies for WeasyPrint (Linux)
+        sudo apt-get update
+        sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0
+        
+        cd python_backend
+        pip install -r requirements.txt
+
+    - name: Run Report Engine
+      env:
+        SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        REPORT_ENGINE_API_KEY: ${{ secrets.REPORT_ENGINE_API_KEY }}
+      run: |
+        cd python_backend
+        python report_engine_only.py --auto

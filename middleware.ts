@@ -42,5 +42,6 @@ export const config = {
   // - _next/static (static files)
   // - _next/image (image optimization files)
   // - favicon.ico (favicon file)
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)']
+  // - intel (intelligence reports)
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|intel).*)']
 };
