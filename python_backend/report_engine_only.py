@@ -24,6 +24,10 @@ Report Engine 命令行版本
 
 import os
 import sys
+
+# 修复路径，确保能找到同目录下的模块 (解决 No module named 'utils' 等问题)
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 import json
 import requests
 import argparse
@@ -613,23 +617,31 @@ def main():
     if not markdown_enabled:
         logger.info("用户指定 --skip-markdown，将跳过 Markdown 生成")
 
-    # 步骤 2: 获取最新文件
-    latest_files = get_latest_engine_reports()
+    # 步骤 2: 获取最新文件或使用 Query 模式
+    if args.query:
+        logger.info(f"检测到自定义 Query: {args.query}")
+        logger.info(">> 独立模式: 跳过本地文件扫描，将直接调用 AI 生成报告")
+        # 构造一个虚拟的上下文，让 Agent 基于 Query 发挥
+        reports = [f"System Notification: No background documents provided. Please generate a comprehensive market report based on the topic '{args.query}' using your internal knowledgebase."]
+        query = args.query
+    else:
+        latest_files = get_latest_engine_reports()
 
-    # 确认文件选择
-    if not confirm_file_selection(latest_files, auto_confirm=args.auto):
-        logger.info("\n程序已退出")
-        sys.exit(0)
+        # 确认文件选择
+        if not confirm_file_selection(latest_files, auto_confirm=args.auto):
+            logger.info("\n程序已退出")
+            sys.exit(0)
 
-    # 加载报告内容
-    reports = load_engine_reports(latest_files)
+        # 加载报告内容
+        reports = load_engine_reports(latest_files)
 
-    if not reports:
-        logger.error("❌ 未能加载任何报告内容")
-        sys.exit(1)
+        if not reports:
+            logger.error("❌ 未能加载任何报告内容")
+            sys.exit(1)
 
-    # 提取或使用指定的查询主题
-    query = args.query if args.query else extract_query_from_reports(latest_files)
+        # 提取或使用指定的查询主题
+        query = extract_query_from_reports(latest_files)
+
     logger.info(f"使用报告主题: {query}")
 
     # 步骤 3: 生成报告
