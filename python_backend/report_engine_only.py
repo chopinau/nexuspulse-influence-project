@@ -648,7 +648,7 @@ def main():
     markdown_content = None # 用于存储到数据库
 
     if html_path:
-        logger.success(f"✓ HTML 已保存: {result.get("report_relative_path", html_path)}")
+        logger.success(f"✓ HTML 已保存: {result.get('report_relative_path', html_path)}")
 
     # 如果有PDF依赖，生成并保存PDF
     if pdf_available:
@@ -685,8 +685,8 @@ def main():
     logger.info("\n" + "=" * 70)
     logger.success("✓ 报告生成完成！")
     logger.info("=" * 70)
-    logger.info(f"报告 ID: {result.get("report_id", "N/A")}")
-    logger.info(f"HTML 文件: {result.get("report_relative_path", "N/A")}")
+    logger.info(f"报告 ID: {result.get('report_id', 'N/A')}")
+    logger.info(f"HTML 文件: {result.get('report_relative_path', 'N/A')}")
     if pdf_available:
         if pdf_path:
             logger.info(f"PDF 文件: {os.path.relpath(pdf_path, os.getcwd())}")
