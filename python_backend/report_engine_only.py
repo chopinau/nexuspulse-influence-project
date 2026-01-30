@@ -1,89 +1,260 @@
 # -*- coding: utf-8 -*-
 """
-Report Engine - Dispatcher Version
-Phase 3: Dispatcher for BettaFish Framework
-作为一个调度器，调用 BettaFish 核心能力 (InsightEngine) 生成报告并存入 Supabase。
+NexusPulse Report Engine - Level 1: Logic Clone (Standalone)
+"Wall Street Intelligence Officer" Edition
+Features:
+- Dual-Source Search (Official News + Community Rumors)
+- DeepSeek/Gemini Integration
+- Hard Data Extraction + Street Whispers Analysis
+- Direct Supabase Integration
 """
 
 import os
 import sys
 import json
-import random
+import time
+import re
 import argparse
 import requests
-import re
+import logging
 from datetime import datetime
-from loguru import logger
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Dict, Optional
+
+# Third-party imports
 from dotenv import load_dotenv
+from loguru import logger
+from duckduckgo_search import DDGS
+import trafilatura
 
-# ================= Path Fix =================
-# 确保能找到 BettaFish 包 (假设 BettaFish 在项目根目录，即 report_engine_only.py 的上两级)
-# D:\my-web-app\nexuspulse-influence-project new git\python_backend\report_engine_only.py
-# 需要加入 D:\my-web-app
+# ================= Configuration & Setup =================
+
+# Determine Paths
 current_file_path = os.path.abspath(__file__)
-python_backend_dir = os.path.dirname(current_file_path) # python_backend
-project_root_dir = os.path.dirname(python_backend_dir)  # nexuspulse-influence-project new git
-workspace_root = os.path.dirname(project_root_dir)      # my-web-app
+python_backend_dir = os.path.dirname(current_file_path)
+project_root_dir = os.path.dirname(python_backend_dir)
 
-if workspace_root not in sys.path:
-    sys.path.append(workspace_root)
-
-# 尝试导入 BettaFish
-try:
-    from BettaFish.InsightEngine.agent import create_agent, DeepSearchAgent
-    logger.success(f"成功导入 BettaFish 框架: {workspace_root}")
-except ImportError as e:
-    logger.error(f"无法导入 BettaFish 框架，请检查路径: {workspace_root}")
-    logger.error(f"Error: {e}")
-    sys.exit(1)
-
-# ================= Configuration =================
-
-# Load environment variables
+# Load Environment Variables
 load_dotenv(os.path.join(project_root_dir, '.env'))
 
-# Supabase Config
+# API Keys
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY") or os.getenv("GEMINI_API_KEY")
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    logger.warning("Supabase 环境变量未设置，将跳过数据库存储。")
+# Constants
+MAX_SEARCH_RESULTS = 5
+MAX_SCRAPE_THREADS = 5
+MAX_CONTENT_LENGTH = 15000  # Truncate combined text to avoid context overflow
 
-# Topic Matrix for Random Selection
-TOPIC_MATRIX = [
-    "Artificial Intelligence Market Trends",
-    "Global Semiconductor Industry",
-    "Electric Vehicle Market Dynamics",
-    "Cryptocurrency & Blockchain Updates",
-    "Renewable Energy Transition",
-    "Biotechnology & Genomics",
-    "Space Exploration & Commercialization",
-    "Cybersecurity Threats & Solutions"
-]
+# Configure Logging
+logger.remove()
+logger.add(sys.stderr, format="<green>{time:HH:mm:ss}</green> | <level>{message}</level>", level="INFO")
 
-# ================= Helper Functions =================
+# ================= Core Functions =================
 
-def map_sentiment_to_score(label: str) -> int:
-    """将情感标签转换为 0-100 的分数"""
-    mapping = {
-        "非常负面": 0,
-        "Very Negative": 0,
-        "负面": 25,
-        "Negative": 25,
-        "中性": 50,
-        "Neutral": 50,
-        "正面": 75,
-        "Positive": 75,
-        "非常正面": 100,
-        "Very Positive": 100
+def search_web(topic: str, source_type: str) -> List[Dict]:
+    """
+    Execute search based on source type.
+    Source A: Official News
+    Source B: Community/Rumors
+    """
+    results = []
+    query = ""
+    
+    if source_type == "official":
+        query = f"{topic} latest news finance data"
+        logger.info(f"🔍 [Source A] Searching Official News: {query}")
+    elif source_type == "community":
+        query = f"{topic} site:reddit.com OR site:twitter.com intitle:rumor OR intitle:leak"
+        logger.info(f"🔍 [Source B] Searching Community Whispers: {query}")
+    else:
+        return []
+
+    try:
+        with DDGS() as ddgs:
+            # Use 'news' backend for official, 'text' for community to capture forum posts
+            if source_type == "official":
+                ddgs_gen = ddgs.news(query, max_results=MAX_SEARCH_RESULTS)
+            else:
+                ddgs_gen = ddgs.text(query, max_results=MAX_SEARCH_RESULTS)
+            
+            for r in ddgs_gen:
+                results.append({
+                    "title": r.get("title", ""),
+                    "url": r.get("href") or r.get("url", ""),
+                    "source_type": source_type
+                })
+    except Exception as e:
+        logger.error(f"❌ Search failed for {source_type}: {e}")
+    
+    logger.info(f"   ✅ Found {len(results)} links for {source_type}")
+    return results
+
+def scrape_url(url_data: Dict) -> Dict:
+    """Scrape a single URL using Trafilatura"""
+    url = url_data["url"]
+    try:
+        downloaded = trafilatura.fetch_url(url)
+        if downloaded:
+            text = trafilatura.extract(downloaded, include_comments=True, include_tables=True)
+            if text:
+                return {
+                    "source": url_data["source_type"],
+                    "url": url,
+                    "content": text[:3000] # Limit per article
+                }
+    except Exception as e:
+        pass # Ignore individual failures
+    return None
+
+def collect_intelligence(topic: str) -> str:
+    """Parallel search and scrape workflow"""
+    # 1. Search
+    official_links = search_web(topic, "official")
+    community_links = search_web(topic, "community")
+    all_links = official_links + community_links
+    
+    if not all_links:
+        logger.warning("⚠️ No search results found.")
+        return ""
+
+    # 2. Scrape in Parallel
+    logger.info(f"🕷️ Scraping {len(all_links)} URLs...")
+    scraped_data = []
+    
+    with ThreadPoolExecutor(max_workers=MAX_SCRAPE_THREADS) as executor:
+        futures = [executor.submit(scrape_url, link) for link in all_links]
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                scraped_data.append(result)
+    
+    logger.success(f"📦 Successfully scraped {len(scraped_data)} pages.")
+    
+    # 3. Format for LLM
+    context_str = ""
+    for item in scraped_data:
+        context_str += f"\n--- SOURCE ({item['source']}): {item['url']} ---\n{item['content']}\n"
+    
+    return context_str[:MAX_CONTENT_LENGTH]
+
+def analyze_with_llm(topic: str, context: str) -> Dict:
+    """
+    Call DeepSeek/Gemini to generate the report.
+    Returns parsed JSON object with 'content', 'sentiment_score', etc.
+    """
+    if not DEEPSEEK_API_KEY:
+        logger.error("❌ API Key missing. Cannot analyze.")
+        return None
+
+    logger.info("🧠 sending data to HQ (DeepSeek/Gemini)...")
+
+    system_prompt = (
+        "You are a Wall Street Hedge Fund Intelligence Officer. "
+        "Your job is to analyze raw data and community rumors to provide actionable intelligence."
+    )
+    
+    user_prompt = f"""
+    TOPIC: {topic}
+    
+    RAW INTELLIGENCE DATA:
+    {context}
+    
+    MISSION:
+    Generate a specialized intelligence report in Markdown format.
+    
+    STRICT OUTPUT FORMAT REQUIREMENTS:
+    
+    1. **📊 Hard Data Panel**
+       - Extract ALL concrete numbers (stock price, revenue, dates, percentages).
+       - Format as a Markdown Table: | Metric | Value | Source |
+       - If no hard data exists, state "No confirmed data available."
+       
+    2. **🗣️ Street Whispers (Community & Insider Sentiment)**
+       - Summarize sentiment from Reddit/Twitter/Forums.
+       - Highlight "Counter-Intuitive" views (e.g., Official news says X, but employees say Y).
+       - MUST cite sources (e.g., "Source: Reddit r/WallStreetBets").
+       
+    3. **🧠 Synthesis (Verdict)**
+       - A concise, punchy conclusion.
+       - Plain English, no jargon.
+    
+    4. **JSON METADATA (Hidden)**
+       - At the very end of your response, output a valid JSON block enclosed in ```json tags with:
+         - "sentiment_score": (0-100, where 0=Bearish, 100=Bullish)
+         - "heat_index": (0-100, based on discussion volume/controversy)
+    """
+
+    api_url = "https://api.deepseek.com/v1/chat/completions" # Default DeepSeek
+    # Fallback/Adjustment if using a different provider can be added here
+    
+    payload = {
+        "model": "deepseek-chat", # Or deepseek-reasoner if available
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.3 # Low temp for factual accuracy
     }
-    return mapping.get(label, 50) # 默认为中性 50
+    
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-def save_to_supabase(intelligence: dict):
-    """Save intelligence data to Supabase"""
+    try:
+        response = requests.post(api_url, json=payload, headers=headers, timeout=60)
+        response.raise_for_status()
+        result = response.json()
+        raw_text = result['choices'][0]['message']['content']
+        
+        # Extract JSON Metadata
+        sentiment_score = 50
+        heat_index = 50
+        
+        # Regex to find JSON block
+        json_match = re.search(r"```json\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
+        if json_match:
+            try:
+                metadata = json.loads(json_match.group(1))
+                sentiment_score = metadata.get("sentiment_score", 50)
+                heat_index = metadata.get("heat_index", 50)
+                # Remove JSON block from display content
+                raw_text = raw_text.replace(json_match.group(0), "").strip()
+            except:
+                pass
+        
+        return {
+            "content": raw_text,
+            "sentiment_score": sentiment_score,
+            "heat_index": heat_index
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ LLM Call Failed: {e}")
+        return None
+
+def save_to_supabase(topic: str, report_data: Dict):
+    """Save report to Supabase market_news table"""
     if not SUPABASE_URL or not SUPABASE_KEY:
-        logger.warning("Supabase credentials missing. Skipping DB save.")
+        logger.warning("⚠️ Supabase credentials missing. Skipping DB save.")
         return
+
+    # Extract Title (First line or Topic)
+    lines = report_data["content"].strip().split('\n')
+    title = lines[0].replace('#', '').strip()
+    if len(title) > 100 or not title:
+        title = f"Intel: {topic}"
+
+    payload = {
+        "title": title,
+        "content": report_data["content"],
+        "sentiment_score": report_data["sentiment_score"],
+        "source": "NexusPulse HQ", # Branding
+        "created_at": datetime.now().isoformat()
+        # "heat_index" could be added if schema supports it
+    }
 
     headers = {
         "apikey": SUPABASE_KEY,
@@ -91,85 +262,54 @@ def save_to_supabase(intelligence: dict):
         "Content-Type": "application/json",
         "Prefer": "return=minimal"
     }
-    
-    url = f"{SUPABASE_URL}/rest/v1/market_news"
-    
+
     try:
-        response = requests.post(url, json=intelligence, headers=headers)
-        if response.status_code in [200, 201]:
-            logger.success("✅ 数据已成功存入 Supabase")
+        url = f"{SUPABASE_URL}/rest/v1/market_news"
+        resp = requests.post(url, json=payload, headers=headers)
+        if resp.status_code in [200, 201]:
+            logger.success("✅ Report saved to Supabase!")
         else:
-            logger.error(f"❌ Supabase 存储失败: {response.status_code} - {response.text}")
-            sys.exit(1) # Fail the workflow if DB save fails
+            logger.error(f"❌ DB Save Failed: {resp.status_code} - {resp.text}")
+            sys.exit(1)
     except Exception as e:
-        logger.error(f"❌ 连接 Supabase 异常: {e}")
+        logger.error(f"❌ DB Connection Error: {e}")
         sys.exit(1)
 
-# ================= Main Logic =================
+# ================= Main Entry Point =================
 
 def main():
-    parser = argparse.ArgumentParser(description="NexusPulse Report Dispatcher (BettaFish Powered)")
-    parser.add_argument("--query", type=str, help="Specific topic to research")
+    parser = argparse.ArgumentParser(description="NexusPulse Intelligence Engine")
+    parser.add_argument("--query", type=str, help="Target topic")
     args = parser.parse_args()
 
-    # 1. 确定目标话题
-    target_topic = args.query if args.query else random.choice(TOPIC_MATRIX)
-    logger.info(f"🎯 目标话题: {target_topic}")
-
-    # 2. 初始化 BettaFish Agent
-    logger.info("🚀 启动 BettaFish InsightEngine...")
-    try:
-        agent = create_agent()
-        
-        # 3. 执行深度研究 (调用 BettaFish 核心能力)
-        # research() 返回的是 Markdown 格式的报告内容
-        logger.info("🔍 Agent 正在进行深度搜索与分析 (这可能需要几分钟)...")
-        report_content = agent.research(query=target_topic, save_report=False)
-        
-        if not report_content:
-            logger.error("❌ BettaFish 未返回任何内容。")
-            sys.exit(1)
-            
-        logger.success("✅ 报告生成完毕")
-
-        # 4. 情感分析 (对生成的报告进行二次分析以获取整体情绪分)
-        logger.info("🎭 正在计算报告情感分数...")
-        sentiment_score = 50 # Default
-        try:
-            sentiment_result = agent.analyze_sentiment_only(report_content)
-            # 解析结果: {"results": [{"sentiment_label": "正面", ...}]}
-            if sentiment_result and sentiment_result.get("success") and sentiment_result.get("results"):
-                first_result = sentiment_result["results"][0]
-                label = first_result.get("sentiment_label", "中性")
-                sentiment_score = map_sentiment_to_score(label)
-                logger.info(f"   - 情感标签: {label} -> 分数: {sentiment_score}")
-            else:
-                logger.warning("   - 情感分析未返回有效结果，使用默认分 50")
-        except Exception as e:
-            logger.warning(f"   - 情感分析过程异常: {e}，使用默认分 50")
-
-        # 5. 构造数据包
-        # 提取标题 (假设第一行是标题)
-        lines = report_content.strip().split('\n')
-        title = lines[0].strip().lstrip('#').strip() if lines else target_topic
-        # 如果标题太长或为空，使用 query
-        if not title or len(title) > 100:
-            title = f"Report: {target_topic}"
-        
-        intelligence = {
-            "title": title,
-            "content": report_content, # Markdown content
-            "sentiment_score": sentiment_score,
-            "source": "BettaFish Engine",
-            "created_at": datetime.now().isoformat()
-        }
-        
-        # 6. 存储到 Supabase
-        save_to_supabase(intelligence)
-
-    except Exception as e:
-        logger.exception(f"❌ BettaFish 运行过程中发生未捕获异常: {e}")
+    # Default Topics
+    TOPICS = [
+        "Tesla Supply Chain Rumors",
+        "NVIDIA AI Chip Demand",
+        "Bitcoin Regulation Leaks",
+        "Apple VR Headset Sales"
+    ]
+    
+    topic = args.query if args.query else TOPICS[0] # Default to first if random not desired
+    
+    logger.info(f"🚀 Starting Intelligence Mission: {topic}")
+    
+    # 1. Collect Data
+    context = collect_intelligence(topic)
+    if not context:
+        logger.error("❌ Mission Aborted: Insufficient Data.")
         sys.exit(1)
+        
+    # 2. Analyze
+    report = analyze_with_llm(topic, context)
+    if not report:
+        logger.error("❌ Mission Aborted: Analysis Failed.")
+        sys.exit(1)
+        
+    # 3. Save
+    save_to_supabase(topic, report)
+    
+    logger.success("🏆 Mission Accomplished.")
 
 if __name__ == "__main__":
     main()
