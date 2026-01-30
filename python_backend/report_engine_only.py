@@ -184,7 +184,9 @@ def main():
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     title = f"{query} - {timestamp}"
     
-    save_to_supabase(title, report_content, supabase_url, supabase_key)
+    if not save_to_supabase(title, report_content, supabase_url, supabase_key):
+        logger.error("❌ 数据库保存失败，请检查 GitHub Secrets 配置 (SUPABASE_URL/KEY)")
+        sys.exit(1)
 
     logger.success("任务全部完成。")
 
