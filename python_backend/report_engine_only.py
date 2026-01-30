@@ -280,6 +280,7 @@ def save_to_supabase(topic: str, report_data: Dict):
 def main():
     parser = argparse.ArgumentParser(description="NexusPulse Intelligence Engine")
     parser.add_argument("--query", type=str, help="Target topic")
+    parser.add_argument("--auto", action="store_true", help="Run in automatic mode") # Added for compatibility
     args = parser.parse_args()
 
     # Default Topics
@@ -311,5 +312,20 @@ def main():
     
     logger.success("🏆 Mission Accomplished.")
 
-if __name__ == "__main__":
+# ================= 主程序入口 ================= 
+
+if __name__ == "__main__": 
+    # 引入 argparse 专门处理 --auto 参数，防止 GitHub Actions 报错 
+    import argparse 
+    
+    parser = argparse.ArgumentParser(description="NexusPulse Pocket Engine") 
+    # 添加 --auto 参数 (虽然我们脚本里可能自动跑，但为了兼容性必须保留它) 
+    parser.add_argument("--auto", action="store_true", help="Run in automatic mode") 
+    parser.add_argument("--query", type=str, help="Optional query override", default=None) 
+    
+    # 解析参数 
+    args = parser.parse_args() 
+    
+    # 无论有没有 --auto，都直接启动主逻辑 
+    print(f"🚀 Starting NexusPulse Engine... (Auto Mode: {args.auto})") 
     main()
