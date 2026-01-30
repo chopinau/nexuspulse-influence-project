@@ -9,6 +9,6 @@ jinja2
 weasyprint
 supabase
 matplotlib
-duckduckgo-search
+duckduckgo-search>=6.0.0
 trafilatura
 lxml_html_clean

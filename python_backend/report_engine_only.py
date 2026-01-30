@@ -250,10 +250,13 @@ def save_to_supabase(topic: str, report_data: Dict):
     payload = {
         "title": title,
         "content": report_data["content"],
-        "sentiment_score": report_data["sentiment_score"],
+        "metadata": {
+            "sentiment_score": report_data.get("sentiment_score", 50),
+            "heat_index": report_data.get("heat_index", 50),
+            "summary": "NexusPulse Intelligence Report"
+        },
         "source": "NexusPulse HQ", # Branding
         "created_at": datetime.now().isoformat()
-        # "heat_index" could be added if schema supports it
     }
 
     headers = {
