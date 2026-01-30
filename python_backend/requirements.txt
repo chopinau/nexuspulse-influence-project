@@ -9,3 +9,6 @@ jinja2
 weasyprint
 supabase
 matplotlib
+duckduckgo-search
+trafilatura
+lxml_html_clean
