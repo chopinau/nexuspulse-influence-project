@@ -1,29 +1,55 @@
 # -*- coding: utf-8 -*-
 """
-Report Engine - Single File Soldier Version
-Phase 2: Structured JSON Output & Analysis
-独立运行版本，不依赖 BettaFish 的任何内部组件。
-直接调用 DeepSeek API 生成结构化情报并存入 Supabase。
+Report Engine - Dispatcher Version
+Phase 3: Dispatcher for BettaFish Framework
+作为一个调度器，调用 BettaFish 核心能力 (InsightEngine) 生成报告并存入 Supabase。
 """
 
 import os
 import sys
 import json
-import re
-import time
 import random
-import requests
 import argparse
-import logging
+import requests
+import re
 from datetime import datetime
+from loguru import logger
+from dotenv import load_dotenv
+
+# ================= Path Fix =================
+# 确保能找到 BettaFish 包 (假设 BettaFish 在项目根目录，即 report_engine_only.py 的上两级)
+# D:\my-web-app\nexuspulse-influence-project new git\python_backend\report_engine_only.py
+# 需要加入 D:\my-web-app
+current_file_path = os.path.abspath(__file__)
+python_backend_dir = os.path.dirname(current_file_path) # python_backend
+project_root_dir = os.path.dirname(python_backend_dir)  # nexuspulse-influence-project new git
+workspace_root = os.path.dirname(project_root_dir)      # my-web-app
+
+if workspace_root not in sys.path:
+    sys.path.append(workspace_root)
+
+# 尝试导入 BettaFish
+try:
+    from BettaFish.InsightEngine.agent import create_agent, DeepSearchAgent
+    logger.success(f"成功导入 BettaFish 框架: {workspace_root}")
+except ImportError as e:
+    logger.error(f"无法导入 BettaFish 框架，请检查路径: {workspace_root}")
+    logger.error(f"Error: {e}")
+    sys.exit(1)
 
 # ================= Configuration =================
 
-# 默认配置
-DEFAULT_API_BASE = "https://api.deepseek.com"
-DEFAULT_MODEL = "deepseek-chat"
+# Load environment variables
+load_dotenv(os.path.join(project_root_dir, '.env'))
 
-# Topic Matrix for Random Selection (Fallback)
+# Supabase Config
+SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+SUPABASE_KEY = os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    logger.warning("Supabase 环境变量未设置，将跳过数据库存储。")
+
+# Topic Matrix for Random Selection
 TOPIC_MATRIX = [
     "Artificial Intelligence Market Trends",
     "Global Semiconductor Industry",
@@ -35,210 +61,115 @@ TOPIC_MATRIX = [
     "Cybersecurity Threats & Solutions"
 ]
 
-# ================= Logger =================
+# ================= Helper Functions =================
 
-class SimpleLogger:
-    def info(self, msg):
-        print(f"[INFO] {datetime.now().strftime('%H:%M:%S')} - {msg}")
+def map_sentiment_to_score(label: str) -> int:
+    """将情感标签转换为 0-100 的分数"""
+    mapping = {
+        "非常负面": 0,
+        "Very Negative": 0,
+        "负面": 25,
+        "Negative": 25,
+        "中性": 50,
+        "Neutral": 50,
+        "正面": 75,
+        "Positive": 75,
+        "非常正面": 100,
+        "Very Positive": 100
+    }
+    return mapping.get(label, 50) # 默认为中性 50
+
+def save_to_supabase(intelligence: dict):
+    """Save intelligence data to Supabase"""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        logger.warning("Supabase credentials missing. Skipping DB save.")
+        return
+
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+    }
     
-    def success(self, msg):
-        print(f"[SUCCESS] {datetime.now().strftime('%H:%M:%S')} - {msg}")
+    url = f"{SUPABASE_URL}/rest/v1/market_news"
     
-    def error(self, msg):
-        print(f"[ERROR] {datetime.now().strftime('%H:%M:%S')} - {msg}")
-    
-    def warning(self, msg):
-        print(f"[WARN] {datetime.now().strftime('%H:%M:%S')} - {msg}")
+    try:
+        response = requests.post(url, json=intelligence, headers=headers)
+        if response.status_code in [200, 201]:
+            logger.success("✅ 数据已成功存入 Supabase")
+        else:
+            logger.error(f"❌ Supabase 存储失败: {response.status_code} - {response.text}")
+            sys.exit(1) # Fail the workflow if DB save fails
+    except Exception as e:
+        logger.error(f"❌ 连接 Supabase 异常: {e}")
+        sys.exit(1)
 
-logger = SimpleLogger()
+# ================= Main Logic =================
 
-# ================= Core Functions =================
-
-def search_and_extract(topic):
-    """
-    Simulated search and extraction.
-    In a real-world scenario, this would use a search API (Google/Bing) and a scraper.
-    """
-    logger.info(f"🔍 正在搜索关于 '{topic}' 的最新信息...")
-    
-    # Placeholder for scraping logic. 
-    # Since we want to rely on the AI's internal knowledge if scraping is not set up:
-    return f"Market intelligence data regarding {topic}. (Source: Internal Knowledge & Analysis)"
-
-def analyze_with_deepseek(topic, context, api_key, base_url, model=DEFAULT_MODEL):
-    """
-    Phase 2: Analyze topic with DeepSeek and return structured JSON.
-    """
-    logger.info(f"🧠 正在调用 AI 分析: {topic}...")
-    
-    # System Prompt: 强制 JSON 格式输出，定义量化指标 
-    system_prompt = """You are NexusPulse, an advanced AI Market Intelligence Analyst. 
-Your goal is to convert raw scraped data into actionable financial intelligence. 
-
-You MUST reply with a valid JSON object ONLY. No markdown formatting outside the JSON. 
-The JSON structure must be: 
-{ 
-    "title": "A punchy, investor-focused title", 
-    "summary": "A concise executive summary (max 200 words)", 
-    "sentiment_score": 0 to 100 (0=Bearish, 50=Neutral, 100=Bullish), 
-    "confidence_index": 0 to 10 (Based on data quality and source credibility), 
-    "key_entities": ["Company A", "Token B", "Person C"], 
-    "actionable_insight": "One specific strategic recommendation for investors/exporters.", 
-    "risk_alert": "Potential downside or risk factor." 
-} 
-""" 
-
-    user_prompt = f""" 
-Analyze the following scraped news regarding: "{topic}". 
-Ignore irrelevant ads or navigation text. Focus on causal chains (Effect -> Impact). 
-
-=== RAW DATA START === 
-{context} 
-=== RAW DATA END === 
-""" 
-
-    headers = { 
-        "Authorization": f"Bearer {api_key}", 
-        "Content-Type": "application/json" 
-    } 
-
-    payload = { 
-        "model": model, 
-        "messages": [ 
-            {"role": "system", "content": system_prompt}, 
-            {"role": "user", "content": user_prompt} 
-        ], 
-        "temperature": 0.4, # 降低温度以保证 JSON 格式稳定 
-        "response_format": {"type": "json_object"} # 如果 API 支持 (DeepSeek beta 可能支持) 
-    } 
-
-    try: 
-        url = f"{base_url.rstrip('/')}/chat/completions" 
-        response = requests.post(url, headers=headers, json=payload, timeout=120) 
-        
-        if response.status_code != 200: 
-            logger.error(f"AI Error: {response.text}") 
-            return None 
-
-        content = response.json()['choices'][0]['message']['content'] 
-        
-        # 清洗可能存在的 Markdown 代码块标记 
-        content = re.sub(r'^```json\s*', '', content) 
-        content = re.sub(r'^```\s*', '', content) 
-        content = re.sub(r'\s*```$', '', content) 
-        
-        return json.loads(content) 
-
-    except json.JSONDecodeError: 
-        logger.error("AI 返回了非 JSON 格式数据，解析失败。") 
-        logger.error(f"Raw Output: {content[:100]}...") 
-        return None 
-    except Exception as e: 
-        logger.error(f"AI 接口异常: {e}") 
-        return None 
-
-def save_to_supabase(data, supabase_url, supabase_key): 
-    """ 
-    保存结构化数据。 
-    为了兼容现有的 'market_news' 表结构 (假设只有 title/content 字段)， 
-    我们将 JSON 扁平化为 Markdown 格式存入 'content'，同时将 raw_json 存入 metadata (如果有)。 
-    """ 
-    logger.info("💾 正在写入数据库...")
-
-    # 将 JSON 转换为人类可读的 Markdown 报告 
-    md_content = f""" 
-> **Sentiment Score:** {data['sentiment_score']}/100 📈 | **Confidence:** {data['confidence_index']}/10 🛡️ 
-
-### 🚀 Actionable Insight 
-**{data['actionable_insight']}** 
-
-### 📊 Executive Summary 
-{data['summary']} 
-
-### ⚠️ Risk Alert 
-{data['risk_alert']} 
-
---- 
-*Entities: {', '.join(data['key_entities'])}* 
-""" 
-
-    payload = { 
-        "title": f"[{data['sentiment_score']}] {data['title']}", # 在标题中直接显示分数 
-        "content": md_content, 
-        "created_at": datetime.now().isoformat(), 
-        # 如果你的表有 'metadata' JSONB 字段，取消下面注释: 
-        # "metadata": data 
-    } 
-
-    headers = { 
-        "apikey": supabase_key, 
-        "Authorization": f"Bearer {supabase_key}", 
-        "Content-Type": "application/json", 
-        "Prefer": "return=minimal" 
-    } 
-
-    try: 
-        api_url = f"{supabase_url.rstrip('/')}/rest/v1/market_news" 
-        response = requests.post(api_url, headers=headers, json=payload, timeout=30) 
-        
-        if response.status_code in [200, 201]: 
-            logger.success("数据保存成功！") 
-            return True 
-        else: 
-            logger.error(f"Supabase Error: {response.status_code} - {response.text}") 
-            return False 
-    except Exception as e: 
-        logger.error(f"Database Exception: {e}") 
-        return False 
-
-# ================= Main Execution ================= 
-
-def main(): 
-    # 0. 环境初始化 
-    try: 
-        from dotenv import load_dotenv 
-        load_dotenv() 
-    except: 
-        pass 
-    
-    # 增加 argparse 逻辑以支持 GitHub Actions 的 --query 参数
-    parser = argparse.ArgumentParser(description="NexusPulse Report Engine")
-    parser.add_argument("--query", type=str, help="Specify topic manually")
-    parser.add_argument("--auto", action="store_true", help="Auto mode")
+def main():
+    parser = argparse.ArgumentParser(description="NexusPulse Report Dispatcher (BettaFish Powered)")
+    parser.add_argument("--query", type=str, help="Specific topic to research")
     args = parser.parse_args()
 
-    api_key = os.environ.get("REPORT_ENGINE_API_KEY") 
-    base_url = os.environ.get("REPORT_ENGINE_BASE_URL", DEFAULT_API_BASE) 
-    supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL") 
-    supabase_key = os.environ.get("SUPABASE_KEY") or os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY") 
+    # 1. 确定目标话题
+    target_topic = args.query if args.query else random.choice(TOPIC_MATRIX)
+    logger.info(f"🎯 目标话题: {target_topic}")
 
-    if not api_key or not supabase_url: 
-        logger.error("配置缺失: 请检查环境变量 API_KEY 和 SUPABASE_URL") 
-        sys.exit(1) 
+    # 2. 初始化 BettaFish Agent
+    logger.info("🚀 启动 BettaFish InsightEngine...")
+    try:
+        agent = create_agent()
+        
+        # 3. 执行深度研究 (调用 BettaFish 核心能力)
+        # research() 返回的是 Markdown 格式的报告内容
+        logger.info("🔍 Agent 正在进行深度搜索与分析 (这可能需要几分钟)...")
+        report_content = agent.research(query=target_topic, save_report=False)
+        
+        if not report_content:
+            logger.error("❌ BettaFish 未返回任何内容。")
+            sys.exit(1)
+            
+        logger.success("✅ 报告生成完毕")
 
-    # 1. 选择主题
-    if args.query:
-        target_topic = args.query
-        logger.info(f"🎯 指定任务目标: {target_topic}")
-    else:
-        # 随机选择一个以保持 Cron 任务轻量化
-        target_topic = random.choice(TOPIC_MATRIX) 
-        logger.info(f"🎯 随机任务目标: {target_topic}") 
+        # 4. 情感分析 (对生成的报告进行二次分析以获取整体情绪分)
+        logger.info("🎭 正在计算报告情感分数...")
+        sentiment_score = 50 # Default
+        try:
+            sentiment_result = agent.analyze_sentiment_only(report_content)
+            # 解析结果: {"results": [{"sentiment_label": "正面", ...}]}
+            if sentiment_result and sentiment_result.get("success") and sentiment_result.get("results"):
+                first_result = sentiment_result["results"][0]
+                label = first_result.get("sentiment_label", "中性")
+                sentiment_score = map_sentiment_to_score(label)
+                logger.info(f"   - 情感标签: {label} -> 分数: {sentiment_score}")
+            else:
+                logger.warning("   - 情感分析未返回有效结果，使用默认分 50")
+        except Exception as e:
+            logger.warning(f"   - 情感分析过程异常: {e}，使用默认分 50")
 
-    # 2. 搜索 & 提取 (The Eyes) 
-    context = search_and_extract(target_topic) 
-    if not context: 
-        logger.warning("信息收集为空，跳过本次任务。") 
-        return 
+        # 5. 构造数据包
+        # 提取标题 (假设第一行是标题)
+        lines = report_content.strip().split('\n')
+        title = lines[0].strip().lstrip('#').strip() if lines else target_topic
+        # 如果标题太长或为空，使用 query
+        if not title or len(title) > 100:
+            title = f"Report: {target_topic}"
+        
+        intelligence = {
+            "title": title,
+            "content": report_content, # Markdown content
+            "sentiment_score": sentiment_score,
+            "source": "BettaFish Engine",
+            "created_at": datetime.now().isoformat()
+        }
+        
+        # 6. 存储到 Supabase
+        save_to_supabase(intelligence)
 
-    # 3. 分析 & 量化 (The Brain) 
-    intelligence = analyze_with_deepseek(target_topic, context, api_key, base_url, DEFAULT_MODEL) 
-    
-    # 4. 存储 (The Memory) 
-    if intelligence: 
-        save_to_supabase(intelligence, supabase_url, supabase_key) 
-    else: 
-        logger.error("情报生成失败。") 
+    except Exception as e:
+        logger.exception(f"❌ BettaFish 运行过程中发生未捕获异常: {e}")
+        sys.exit(1)
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     main()
