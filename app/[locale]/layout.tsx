@@ -3,10 +3,10 @@ import { Inter, Noto_Sans_SC } from "next/font/google";
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { AppProvider } from '@/components/AppProvider';
-import Navbar from "@/components/Navbar";
-import "./globals.css"; // Co-located file to prevent path resolution errors
+// import Navbar from "@/components/Navbar";
 // Ensure globals.css is loaded for Vercel deployment
 import { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"] });
 const notoSansSC = Noto_Sans_SC({ subsets: ["latin"], weight: ["400", "500", "700"] });
@@ -27,16 +27,18 @@ export default async function LocaleLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale} className="dark">
+    <html lang={locale} className="dark" suppressHydrationWarning>
       {/* Load Noto Sans SC for Chinese support if needed */}
-      <body className={`${inter.className} ${locale === 'zh' ? notoSansSC.className : ''} bg-cyber-dark text-slate-100 min-h-screen selection:bg-cyber-neon selection:text-cyber-dark overflow-x-hidden`}>
-        <div className="fixed inset-0 bg-radiant-dark -z-20" />
-        <div className="fixed inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 -z-10 mix-blend-overlay" />
+      <body className={cn(
+          "min-h-screen bg-background font-sans antialiased",
+          inter.className,
+          locale === 'zh' && notoSansSC.className
+        )}>
         
         <NextIntlClientProvider messages={messages}>
           <AppProvider>
-            <Navbar />
-            <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pb-20">
+            {/* <Navbar /> */}
+            <main className="min-h-screen">
               {children}
             </main>
           </AppProvider>

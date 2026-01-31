@@ -1,74 +1,187 @@
-import { useTranslations } from 'next-intl';
-import GlowCard from '@/components/GlowCard';
-import NeonChart from '@/components/NeonChart';
-import LiveGlobalFeed from '@/components/LiveGlobalFeed';
-import LiveDashboardGrid from '@/components/LiveDashboardGrid'; // IMPORTED
-import { Link } from '@/i18n/routing';
+"use client"
 
-export default function Home() {
-  const t = useTranslations('home');
+import { useState, useEffect } from "react"
+import { Bell, Search, Globe, ChevronDown, Terminal, AlertTriangle } from "lucide-react"
+import { DashboardSidebar } from "@/components/dashboard/sidebar" // Keeping sidebar from dashboard for now, unless v0 generated one?
+import { TrendChart } from "@/components/trend-chart"
+import { DataTable } from "@/components/data-table"
+import { StatCards } from "@/components/stat-cards"
+import { LiveFeed } from "@/components/live-feed"
+import { SignalCard } from "@/components/signal-card"
+import { createClient } from '@supabase/supabase-js'
+import { MarketNews } from '@/types/dashboard'
+
+// Initialize Supabase Client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+export default function Dashboard() {
+  const [activeNav, setActiveNav] = useState("dashboard")
+  
+  // Supabase Data State
+  const [data, setData] = useState<MarketNews[]>([]);
+  const [latestReport, setLatestReport] = useState<MarketNews | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+    // Real-time subscription
+    const interval = setInterval(fetchData, 60000); // Refresh every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  async function fetchData() {
+    try {
+      const { data: news, error } = await supabase
+        .from('market_news')
+        .select('*')
+        .order('created_at', { ascending: true }) // Ascending for chart
+        .limit(30);
+
+      if (error) throw error;
+
+      if (news && news.length > 0) {
+        setData(news);
+        setLatestReport(news[news.length - 1]); // Last one is latest due to ascending sort
+      }
+    } catch (err) {
+      console.error('Error fetching market data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-green-500 font-mono flex items-center justify-center">
+        <div className="flex items-center gap-2 animate-pulse">
+          <Terminal size={24} />
+          <span>ESTABLISHING SECURE CONNECTION...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-12">
-      {/* Hero Section */}
-      <section className="text-center space-y-4 py-10 relative">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyber-purple/20 blur-[100px] rounded-full -z-10" />
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-white via-cyber-neon to-cyber-purple">
-            {t('hero.title')}
-          </span>
-        </h1>
-        <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-          {t('hero.subtitle')}
-        </p>
-      </section>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Sidebar */}
+      <DashboardSidebar activeItem={activeNav} onItemClick={setActiveNav} />
 
-      {/* Grid Ranking - LIVE */}
-      <LiveDashboardGrid />
+      {/* Main Content */}
+      <main className="pl-16 lg:pl-64 transition-all duration-300">
+        {/* Header */}
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-xl">
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-semibold text-foreground">
+              Real-time Influence Tracking
+            </h1>
+            <span className="hidden rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary sm:inline-block">
+              Enterprise
+            </span>
+          </div>
 
-      {/* Main Content Split */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Column: Chart & Signals */}
-        <div className="lg:col-span-2 space-y-8">
-          <GlowCard>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <span className="w-2 h-2 bg-cyber-neon rounded-full animate-pulse" />
-                7-Day Trend Analysis
-              </h2>
-              <div className="flex gap-2">
-                <button className="text-xs px-3 py-1 rounded bg-cyber-neon/20 text-cyber-neon border border-cyber-neon/30">Heat</button>
-                <button className="text-xs px-3 py-1 rounded bg-white/5 text-gray-400 hover:bg-white/10">Sentiment</button>
-              </div>
+          <div className="flex items-center gap-3">
+            {/* Search */}
+            <button
+              type="button"
+              className="hidden items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
+            >
+              <Search className="h-4 w-4" />
+              <span>Search...</span>
+              <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                /K
+              </kbd>
+            </button>
+
+            {/* Language toggle */}
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
+            >
+              <Globe className="h-4 w-4" />
+              <span className="hidden sm:inline">EN</span>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+
+            {/* Notifications */}
+            <button
+              type="button"
+              className="relative rounded-lg bg-secondary p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Bell className="h-5 w-5" />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
+            </button>
+
+            {/* User avatar */}
+            <button
+              type="button"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary to-chart-2 text-sm font-semibold text-primary-foreground"
+            >
+              N
+            </button>
+          </div>
+        </header>
+
+        {/* Dashboard Content */}
+        <div className="p-6">
+          {/* Page title section */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">
+              Influence Dashboard
+            </h2>
+            <p className="mt-1 text-muted-foreground">
+              For investors and brands tracking digital influence and market sentiment
+            </p>
+          </div>
+
+          {/* Stat Cards */}
+          <div className="mb-6">
+            <StatCards latestReport={latestReport} data={data} />
+          </div>
+
+          {/* Bento Grid Layout */}
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Chart - spans 2 columns */}
+            <div className="lg:col-span-2">
+              <TrendChart data={data} />
             </div>
-            <NeonChart />
-          </GlowCard>
 
-          {/* AI Value Teaser */}
-          <div className="relative p-[1px] rounded-2xl overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-r from-cyber-purple via-cyber-pink to-cyber-neon opacity-50 group-hover:opacity-100 transition-opacity animate-glow" />
-            <div className="relative bg-black/80 backdrop-blur-xl rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                  ✨ {t('signals.title')}
-                </h3>
-                <p className="text-gray-300 text-sm">
-                  {t('signals.teaser')}
-                </p>
-              </div>
-              <Link href="/premium">
-                <button className="whitespace-nowrap px-6 py-3 bg-cyber-purple hover:bg-cyber-purple/80 text-white font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(189,0,255,0.4)] hover:scale-105">
-                  {t('signals.upgrade')}
-                </button>
-              </Link>
+            {/* Signal Card */}
+            <div className="lg:col-span-1">
+              <SignalCard latestReport={latestReport} />
+            </div>
+
+            {/* Data Table - spans 2 columns */}
+            <div className="lg:col-span-2">
+              <DataTable data={data} />
+            </div>
+
+            {/* Live Feed */}
+            <div className="lg:col-span-1">
+              <LiveFeed latestReport={latestReport} loading={loading} data={data} />
             </div>
           </div>
-        </div>
 
-        {/* Right Column: Live Global Feed */}
-        <LiveGlobalFeed />
-      </div>
+          {/* Footer */}
+          <footer className="mt-12 border-t border-border pt-6">
+            <div className="flex flex-col items-center justify-between gap-4 text-sm text-muted-foreground sm:flex-row">
+              <p>NEXUSPULSE © 2026. All rights reserved.</p>
+              <div className="flex items-center gap-4">
+                <a href="#" className="transition-colors hover:text-foreground">
+                  Documentation
+                </a>
+                <a href="#" className="transition-colors hover:text-foreground">
+                  API
+                </a>
+                <a href="#" className="transition-colors hover:text-foreground">
+                  Support
+                </a>
+              </div>
+            </div>
+          </footer>
+        </div>
+      </main>
     </div>
-  );
+  )
 }

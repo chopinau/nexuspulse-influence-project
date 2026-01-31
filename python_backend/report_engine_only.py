@@ -66,7 +66,7 @@ def search_web(topic: str, source_type: str) -> List[Dict]:
         query = f"{topic} latest news finance data"
         logger.info(f"🔍 [Source A] Searching Official News: {query}")
     elif source_type == "community":
-        query = f"{topic} site:reddit.com OR site:twitter.com intitle:rumor OR intitle:leak"
+        query = f"{topic} reddit forum discussion rumors sentiment"
         logger.info(f"🔍 [Source B] Searching Community Whispers: {query}")
     else:
         return []
@@ -113,6 +113,10 @@ def collect_intelligence(topic: str) -> str:
     # 1. Search
     official_links = search_web(topic, "official")
     community_links = search_web(topic, "community")
+    
+    if not community_links:
+        logger.warning("⚠️ Source B (Community) returned 0 results. Proceeding with Official News only.")
+
     all_links = official_links + community_links
     
     if not all_links:
