@@ -1,5 +1,5 @@
 import React from 'react';
-import '../[locale]/globals.css'; // Import global styles if needed, or just basic setup
+import '../globals.css'; // Import global styles if needed, or just basic setup
 
 export const metadata = {
   title: 'NexusPulse Intelligence',
