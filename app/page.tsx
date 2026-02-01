@@ -8,6 +8,7 @@ import { DataTable } from "@/components/dashboard/data-table"
 import { StatCards } from "@/components/dashboard/stat-cards"
 import { LiveFeed } from "@/components/dashboard/live-feed"
 import { SignalCard } from "@/components/dashboard/signal-card"
+import LogicFlow from "@/components/LogicFlow"
 
 export default function Dashboard() {
   const [activeNav, setActiveNav] = useState("dashboard")
@@ -91,9 +92,9 @@ export default function Dashboard() {
 
           {/* Bento Grid Layout */}
           <div className="grid gap-6 lg:grid-cols-3">
-            {/* Chart - spans 2 columns */}
-            <div className="lg:col-span-2">
-              <TrendChart />
+            {/* 战略推演图区域 - 占据两列宽度 */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-2 min-h-[400px]">
+              <LogicFlow />
             </div>
 
             {/* Signal Card */}

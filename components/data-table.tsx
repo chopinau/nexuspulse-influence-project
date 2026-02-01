@@ -48,23 +48,23 @@ export function DataTable({ data }: DataTableProps) {
                     {item.title}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {item.heat_index?.toFixed(0) || '-'}
+                    {item.metadata?.heat_index?.toFixed(0) || '-'}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
                     <span
                       className={
-                        (item.sentiment || 0) >= 70
+                        (item.metadata?.sentiment_score || 0) >= 70
                           ? "text-success"
-                          : (item.sentiment || 0) >= 50
+                          : (item.metadata?.sentiment_score || 0) >= 50
                             ? "text-chart-4"
                             : "text-destructive"
                       }
                     >
-                      {item.sentiment?.toFixed(1) || '-'}
+                      {item.metadata?.sentiment_score?.toFixed(1) || '-'}
                     </span>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm text-foreground">
-                    {item.impact_score?.toFixed(1) || '-'}
+                    {item.metadata?.impact_score?.toFixed(1) || '-'}
                   </TableCell>
                 </TableRow>
               ))

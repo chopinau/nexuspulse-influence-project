@@ -8,6 +8,7 @@ import { DataTable } from "@/components/data-table"
 import { StatCards } from "@/components/stat-cards"
 import { LiveFeed } from "@/components/live-feed"
 import { SignalCard } from "@/components/signal-card"
+import LogicFlow from "@/components/LogicFlow"
 import { createClient } from '@supabase/supabase-js'
 import { MarketNews } from '@/types/dashboard'
 
@@ -142,9 +143,9 @@ export default function Dashboard() {
 
           {/* Bento Grid Layout */}
           <div className="grid gap-6 lg:grid-cols-3">
-            {/* Chart - spans 2 columns */}
-            <div className="lg:col-span-2">
-              <TrendChart data={data} />
+            {/* 战略推演图区域 - 占据两列宽度 */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-2 min-h-[400px]">
+              <LogicFlow />
             </div>
 
             {/* Signal Card */}
