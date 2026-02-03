@@ -4,62 +4,91 @@
  import mermaid from "mermaid"; 
  import { Maximize2, GitGraph, Share2 } from "lucide-react"; 
  
- const LogicFlow = () => { 
-   const chartRef = useRef<HTMLDivElement>(null); 
-   const [isExpanded, setIsExpanded] = useState(false); 
- 
-   // 这里是模拟 AI 生成的“战略推演逻辑” 
-   // 未来我们会让 Python 后端生成这段代码 
-   const strategicGraph = ` 
-     graph TD 
-     %% 样式定义 
-     classDef risk fill:#ef4444,stroke:#7f1d1d,color:white; 
-     classDef opportunity fill:#10b981,stroke:#047857,color:white; 
-     classDef neutral fill:#3b82f6,stroke:#1d4ed8,color:white; 
- 
-     Start((🚀 市场信号监测)) --> Analyze{AI 深度研判} 
-     
-     Analyze -->|负面情绪| Risk[🔴 供应链风险预警] 
-     Analyze -->|正面情绪| Opp[🟢 品牌出海机会] 
-     
-     Risk -->|原材料上涨| Cost(成本压力 +15%) 
-     Risk -->|物流延误| Stock(建议库存: 3个月) 
-     
-     Opp -->|流量红利| Ads(建议增加 TikTok 投放) 
-     Opp -->|竞品空缺| Product(建议新品: 环保系列) 
-     
-     Cost :::risk 
-     Stock :::neutral 
-     Ads :::opportunity 
-     Product :::opportunity 
-   `; 
- 
-   useEffect(() => { 
-     if (chartRef.current) { 
-       mermaid.initialize({ 
-         startOnLoad: true, 
-         theme: "dark", // 适配你的深色模式 
-         securityLevel: "loose", 
-         fontFamily: "monospace", 
-       }); 
-       
-       mermaid.contentLoaded(); 
-       
-       // 手动渲染 
-       const renderChart = async () => { 
-         try { 
-           // 清空旧图表以防止重绘堆叠 
-           chartRef.current!.innerHTML = ''; 
-           const { svg } = await mermaid.render("mermaid-svg", strategicGraph); 
-           chartRef.current!.innerHTML = svg; 
-         } catch (error) { 
-           console.error("Mermaid 渲染失败:", error); 
-         } 
-       }; 
- 
-       renderChart(); 
-     } 
-   }, [strategicGraph]); 
+ const LogicFlow = ({ code }: { code?: string }) => { 
+  const chartRef = useRef<HTMLDivElement>(null); 
+  const [isExpanded, setIsExpanded] = useState(false); 
+
+  // Default fallback graph if no code provided
+  const defaultGraph = ` 
+    graph TD 
+    %% 样式定义 
+    classDef risk fill:#ef4444,stroke:#7f1d1d,color:white; 
+    classDef opportunity fill:#10b981,stroke:#047857,color:white; 
+    classDef neutral fill:#3b82f6,stroke:#1d4ed8,color:white; 
+    
+    Start((🚀 市场信号监测)) --> Analyze{AI 深度研判} 
+    Analyze -->|负面情绪| Risk[🔴 供应链风险预警] 
+    Analyze -->|正面情绪| Opp[🟢 品牌出海机会] 
+    Risk -->|原材料上涨| Cost(成本压力 +15%) 
+    Risk -->|物流延误| Stock(建议库存: 3个月) 
+    Opp -->|流量红利| Ads(建议增加 TikTok 投放) 
+    Opp -->|竞品空缺| Product(建议新品: 环保系列) 
+    Cost :::risk 
+    Stock :::neutral 
+    Ads :::opportunity 
+    Product :::opportunity 
+  `; 
+
+  // Clean Mermaid code by removing any surrounding code blocks
+  const cleanMermaidCode = (code: string) => {
+    // Remove ```mermaid and ``` tags
+    return code.replace(/^```mermaid\n/, '').replace(/\n```$/, '').trim();
+  };
+
+  const graphToRender = code ? cleanMermaidCode(code) : defaultGraph;
+
+  useEffect(() => { 
+    if (chartRef.current) { 
+      // Reset the container before initializing
+      chartRef.current.innerHTML = '';
+      
+      mermaid.initialize({ 
+        startOnLoad: false, // Changed to false for manual control
+        theme: "base", // Using base theme for better custom control
+        themeVariables: {
+          darkMode: true,
+          background: '#18181b', // zinc-900
+          primaryColor: "#06b6d4", // cyan-500
+          primaryTextColor: "#ffffff",
+          primaryBorderColor: "#06b6d4",
+          lineColor: "#e4e4e7", // zinc-200 (Bright lines)
+          secondaryColor: "#3b82f6", // blue-500
+          tertiaryColor: "#10b981", // emerald-500
+          mainBkg: "#27272a", // zinc-800
+          nodeBorder: "#52525b", // zinc-600
+          clusterBkg: "#27272a",
+          clusterBorder: "#52525b",
+          defaultLinkColor: "#e4e4e7", // zinc-200
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+          fontSize: "14px",
+        },
+        securityLevel: "loose", 
+      }); 
+      
+      // 手动渲染 
+      const renderChart = async () => { 
+        try { 
+          // Generate unique ID for each render to avoid conflicts
+          const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+          const { svg } = await mermaid.render(id, graphToRender); 
+          if (chartRef.current) {
+             chartRef.current.innerHTML = svg;
+             // Add some basic styling to the SVG
+             const svgElement = chartRef.current.querySelector('svg');
+             if (svgElement) {
+                svgElement.style.maxWidth = '100%';
+                svgElement.style.height = 'auto';
+             }
+          }
+        } catch (error) { 
+          console.error("Mermaid 渲染失败:", error); 
+          // Fallback or error state could be handled here
+        } 
+      }; 
+
+      renderChart(); 
+    } 
+  }, [graphToRender]); 
  
    return ( 
      <div className={`relative flex flex-col bg-zinc-900/50 border border-zinc-800 rounded-xl overflow-hidden transition-all duration-500 ${isExpanded ? 'fixed inset-4 z-50 bg-zinc-950/95 border-zinc-700' : 'h-full'}`}> 
@@ -85,9 +114,9 @@
          </div> 
        </div> 
  
-       {/* 图表渲染区 */} 
-       <div className="flex-1 p-6 overflow-auto flex justify-center items-center min-h-[300px]"> 
-         <div ref={chartRef} className="w-full h-full flex justify-center items-center opacity-90 hover:opacity-100 transition-opacity" /> 
+       {/* 图表渲染区 */}
+       <div className="flex-1 p-6 overflow-auto flex justify-center items-center min-h-[400px]">
+         <div ref={chartRef} className="w-full h-full flex justify-center items-center opacity-90 hover:opacity-100 transition-opacity" />
        </div> 
  
        {/* 底部 AI 旁白 */} 
