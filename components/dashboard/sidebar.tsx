@@ -29,9 +29,10 @@ export function DashboardSidebar({ activeItem, onItemClick }: DashboardSidebarPr
         <nav className="space-y-1 px-2">
           {menuItems.map((item) => (
             <button
+              type="button"
               key={item.id}
               onClick={() => onItemClick(item.id)}
-              className={`flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              className={`flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
                 activeItem === item.id
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -51,7 +52,7 @@ export function DashboardSidebar({ activeItem, onItemClick }: DashboardSidebarPr
         </nav>
 
         <div className="px-2">
-          <button className="flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+          <button type="button" className="flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer">
             <Bell className="h-5 w-5 min-w-[20px]" />
             <span className="ml-3 hidden overflow-hidden whitespace-nowrap lg:block">
               Notifications

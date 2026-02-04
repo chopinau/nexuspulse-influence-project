@@ -7,7 +7,7 @@ import LogicFlow from "@/components/LogicFlow"
 
 export function GridBackground() {
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden">
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
       {/* Base gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-background" />
       
@@ -124,19 +124,20 @@ export default function Dashboard() {
         if (data.error) {
             console.error("Agent Error:", data.error);
             setLoadingText("❌ 生成失败: " + data.error);
-            return;
-        }
-
-        setReportData(data);
-        if (data.mermaid_code) {
-            setMermaidCode(data.mermaid_code);
+        } else {
+            setReportData(data);
+            setMermaidCode(data?.mermaid_code && data.mermaid_code.trim() ? data.mermaid_code : undefined);
         }
 
     } catch (e) {
         console.error("Network Error:", e);
         setLoadingText("❌ 网络错误");
     } finally {
-        clearInterval(stepTimer);
+        try {
+            clearInterval(stepTimer);
+        } catch (e) {
+            // Ignore error if stepTimer is not defined
+        }
         setLoading(false);
     }
   };
@@ -255,7 +256,7 @@ export default function Dashboard() {
                 exit={{ opacity: 0, y: -20 }}
               >
                 <h3 className="text-xl font-bold text-foreground mb-4">
-                  关于 {searchQuery} 的深度战略研判
+                  {reportData.report_title || `关于 ${searchQuery} 的深度战略研判`}
                 </h3>
               </motion.div>
             )}
@@ -265,13 +266,19 @@ export default function Dashboard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="bg-card border border-border rounded-xl p-4"
+              className="bg-slate-950/50 border border-border rounded-xl p-4"
             >
               <h3 className="text-lg font-semibold text-primary mb-4">
                 🔄 逻辑流程图
               </h3>
               <div className="min-h-[400px]">
-                <LogicFlow code={mermaidCode} />
+                {(reportData?.mermaid_code && reportData.mermaid_code.trim()) ? (
+                  <LogicFlow code={reportData.mermaid_code} />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    Waiting for intel...
+                  </div>
+                )}
               </div>
             </motion.div>
 
@@ -283,7 +290,7 @@ export default function Dashboard() {
                   📋 核心结论
                 </h3>
                 <blockquote className="pl-4 border-l-4 border-primary/30 italic text-lg text-foreground/90 bg-primary/5 p-4 rounded-r-lg">
-                  <div dangerouslySetInnerHTML={{ __html: reportData.content.split('### ⚔️')[0].replace(/\n/g, '<br/>') }} />
+                  <div dangerouslySetInnerHTML={{ __html: (reportData?.verdict_text || reportData?.full_markdown_report || "Waiting for intel...").replace(/\n/g, '<br/>') }} />
                 </blockquote>
               </div>
             )}
@@ -308,7 +315,7 @@ export default function Dashboard() {
                   </summary>
                   <div className="mt-4 prose prose-invert prose-sm max-w-none border-t border-border pt-4 animate-in fade-in slide-in-from-top-2 duration-300">
                     {/* Render the rest of the content - splitting by sections if possible or just showing all */}
-                    <div dangerouslySetInnerHTML={{ __html: reportData.content.replace(/\n/g, '<br/>') }} />
+                    <div dangerouslySetInnerHTML={{ __html: (reportData?.debate_details ? reportData.debate_details : (reportData?.content || "No debate data")).replace(/\n/g, '<br/>') }} />
                   </div>
                 </details>
               </div>
@@ -364,7 +371,7 @@ export default function Dashboard() {
                       情感得分
                     </span>
                     <span className="text-sm font-semibold text-foreground">
-                      {reportData.metadata?.sentiment_score || reportData.sentiment || 50}
+                      {reportData.structured_data?.sentiment_score || 50}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -372,7 +379,7 @@ export default function Dashboard() {
                       热度指数
                     </span>
                     <span className="text-sm font-semibold text-foreground">
-                      {reportData.metadata?.heat_index || reportData.heat_index || 50}
+                      {reportData.structured_data?.heat_index || 50}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -380,9 +387,19 @@ export default function Dashboard() {
                       影响得分
                     </span>
                     <span className="text-sm font-semibold text-foreground">
-                      {reportData.metadata?.impact_score || reportData.impact_score || 50}
+                      {reportData.structured_data?.impact_score || 50}
                     </span>
                   </div>
+                  {reportData.structured_data?.sop_based && (
+                    <div className="flex justify-between items-center pt-2 border-t border-border">
+                      <span className="text-sm text-muted-foreground">
+                        SOP 基础
+                      </span>
+                      <span className="text-sm font-semibold text-foreground">
+                        {reportData.structured_data.sop_name || 'general_consultant'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

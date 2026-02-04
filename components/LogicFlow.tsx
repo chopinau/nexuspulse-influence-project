@@ -35,7 +35,14 @@
     return code.replace(/^```mermaid\n/, '').replace(/\n```$/, '').trim();
   };
 
-  const graphToRender = code ? cleanMermaidCode(code) : defaultGraph;
+  // Ensure we always have a valid graph to render
+  const graphToRender = (() => {
+    if (code && typeof code === 'string') {
+      const cleaned = cleanMermaidCode(code);
+      return cleaned || defaultGraph;
+    }
+    return defaultGraph;
+  })();
 
   useEffect(() => { 
     if (chartRef.current) { 

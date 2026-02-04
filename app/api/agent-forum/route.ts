@@ -61,10 +61,13 @@ export async function POST(request: NextRequest) {
       console.error(`Python script exited with code ${exitCode}`);
       return NextResponse.json(
         {
-          error: 'Failed to generate report',
-          details: errorData,
-          content: `# 报告生成失败\n\n## 原因\n${errorData}\n\n## 建议\n请尝试更换关键词或稍后再试。`,
-          metadata: {
+          status: 'error',
+          report_title: `关于 ${topic} 的分析报告`,
+          verdict_text: '报告生成失败',
+          full_markdown_report: `# 关于 ${topic} 的深度战略研判\n\n## 📋 核心结论\n> 决策建议：报告生成失败\n> \n> 后端处理过程中出现错误。\n\n## ⚖️ 多空博弈\n分析失败\n\n## 📊 数据支持\n无数据\n\n## 💡 行动建议\n1. [P1] 重要：请尝试更换关键词\n2. [P2] 次要：稍后再试\n3. [P3] 常规：检查网络连接\n\n## 🔄 逻辑流程图\n\n\`\`\`mermaid\ngraph TD\n    Start[开始分析] --> Error[分析失败]\n    Error --> Retry[建议重试]\n\`\`\``,
+          debate_details: '分析失败',
+          mermaid_code: 'graph TD\n    Start[开始分析] --> Error[分析失败]\n    Error --> Retry[建议重试]',
+          structured_data: {
             sentiment_score: 50,
             heat_index: 0,
             impact_score: 0,
@@ -76,44 +79,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract JSON from Python output using regex
-    // Look for the last valid JSON object in the output
+    // Extract JSON from Python output
     let jsonOutput = null;
     try {
-      // Find all JSON objects in the output
-      const jsonMatches = outputData.match(/\{[\s\S]*?\}/g);
-      if (jsonMatches) {
-        // Get the last JSON object (most likely the report)
-        const lastJson = jsonMatches[jsonMatches.length - 1];
-        jsonOutput = JSON.parse(lastJson);
+      // 1. Try to extract using explicit delimiters (Most Robust)
+      const delimiterMatch = outputData.match(/---JSON_START---([\s\S]*?)---JSON_END---/);
+      if (delimiterMatch && delimiterMatch[1]) {
+        jsonOutput = JSON.parse(delimiterMatch[1].trim());
+      } 
+      // 2. Fallback: Try to find JSON object using regex (if delimiters missing)
+      else {
+        console.warn("Delimiters not found, falling back to regex extraction");
+        // Use a balanced brace matching approach or just last valid JSON
+        // Simple regex often fails on nested objects, so we try to find the largest block
+        const jsonMatches = outputData.match(/\{[\s\S]*\}/); // Greedy match from first { to last }
+        if (jsonMatches) {
+          jsonOutput = JSON.parse(jsonMatches[0]);
+        }
       }
     } catch (e) {
       console.error('Failed to extract JSON from Python output:', e);
     }
 
-    // Return the extracted JSON or a placeholder
+    // Return the extracted JSON or a standardized error response
     if (jsonOutput) {
       return NextResponse.json(jsonOutput);
     } else {
       return NextResponse.json({
-        content: `# 关于 ${topic} 的深度战略研判\n\n## 📋 核心结论\n正在生成报告...\n\n## ⚖️ 多空博弈\n正在分析...\n\n## 📊 数据支持\n正在收集...\n\n## 💡 行动建议\n正在制定...\n\n## 🔄 逻辑流程图\n\n\`\`\`mermaid\ngraph TD\n    A[开始分析] --> B[数据收集]\n    B --> C[多头分析]\n    B --> D[空头分析]\n    C --> E[决策评估]\n    D --> E\n    E --> F[最终结论]\n\`\`\``,
-        metadata: {
+        status: 'error',
+        report_title: `关于 ${topic} 的分析报告`,
+        verdict_text: '报告生成失败',
+        full_markdown_report: `# 关于 ${topic} 的深度战略研判\n\n## 📋 核心结论\n> 决策建议：报告生成失败\n> \n> 无法从后端获取有效的分析结果。\n\n## ⚖️ 多空博弈\n分析失败\n\n## 📊 数据支持\n无数据\n\n## 💡 行动建议\n1. [P1] 重要：请尝试更换关键词\n2. [P2] 次要：稍后再试\n3. [P3] 常规：检查网络连接\n\n## 🔄 逻辑流程图\n\n\`\`\`mermaid\ngraph TD\n    Start[开始分析] --> Error[分析失败]\n    Error --> Retry[建议重试]\n\`\`\``,
+        debate_details: '分析失败',
+        mermaid_code: 'graph TD\n    Start[开始分析] --> Error[分析失败]\n    Error --> Retry[建议重试]',
+        structured_data: {
           sentiment_score: 50,
-          heat_index: 50,
-          impact_score: 50,
-          sop_based: true,
+          heat_index: 0,
+          impact_score: 0,
+          sop_based: false,
           sop_name: 'general_consultant'
         }
       });
     }
-
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
       {
-        error: 'Internal Server Error',
-        content: `# 服务器错误\n\n## 原因\n${error instanceof Error ? error.message : '未知错误'}\n\n## 建议\n请稍后再试。`,
-        metadata: {
+        status: 'error',
+        report_title: '服务器错误',
+        verdict_text: '服务器内部错误',
+        full_markdown_report: `# 服务器错误\n\n## 📋 核心结论\n> 决策建议：服务器错误\n> \n> 服务器处理过程中出现内部错误。\n\n## ⚖️ 多空博弈\n无\n\n## 📊 数据支持\n无\n\n## 💡 行动建议\n1. [P1] 重要：请稍后再试\n2. [P2] 次要：检查网络连接\n3. [P3] 常规：联系技术支持\n\n## 🔄 逻辑流程图\n\n\`\`\`mermaid\ngraph TD\n    Start[开始请求] --> ServerError[服务器错误]\n    ServerError --> Wait[建议稍后再试]\n\`\`\``,
+        debate_details: '无',
+        mermaid_code: 'graph TD\n    Start[开始请求] --> ServerError[服务器错误]\n    ServerError --> Wait[建议稍后再试]',
+        structured_data: {
           sentiment_score: 50,
           heat_index: 0,
           impact_score: 0,
