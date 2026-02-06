@@ -71,8 +71,48 @@ const fetchRSS = async (rssUrl: string, sourceName: string) => {
   return [];
 };
 
-export default function LiveGlobalFeed() {
+export default function LiveGlobalFeed({ topic }: { topic?: string }) {
   const t = useTranslations('home.dynamics');
+
+  // MOCK DATA for Demo (E-commerce focus)
+  const MOCK_ECOMMERCE_NEWS = [
+      {
+          id: 'mock-1',
+          title: 'Global Shipping Rates Expected to Rise 15% in Q3 due to Fuel Costs',
+          url: '#',
+          timestamp: new Date().toISOString(),
+          summary: 'Logistics experts warn of incoming price hikes for cross-border e-commerce sellers as crude oil prices stabilize at higher levels.',
+          source: 'LogisticsDaily',
+          type: 'signal'
+      },
+      {
+          id: 'mock-2',
+          title: 'TikTok Shop Tightens Rules on Health & Beauty Product Certifications',
+          url: '#',
+          timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+          summary: 'New compliance framework requires sellers to upload FDA/CE documentation before listing new SKUs in the US market.',
+          source: 'E-Com Insider',
+          type: 'signal'
+      },
+      {
+          id: 'mock-3',
+          title: 'Amazon FBA Inventory Limits Relaxed for High-Performing SKUs',
+          url: '#',
+          timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+          summary: 'Sellers with IPI scores above 500 will see a 20% increase in storage capacity starting next month.',
+          source: 'SellerCentral',
+          type: 'rss'
+      },
+      {
+          id: 'mock-4',
+          title: 'Consumer Spending on "Affordable Luxury" Drops 8% YoY',
+          url: '#',
+          timestamp: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
+          summary: 'Inflationary pressures are causing a shift towards budget-friendly alternatives in the fashion and electronics sectors.',
+          source: 'MarketWatch',
+          type: 'rss'
+      }
+  ];
 
   // Fetch config data from Supabase to get RSS URLs
   const { data: configRows } = useSWR('global-config', async () => {
@@ -180,6 +220,11 @@ export default function LiveGlobalFeed() {
       // 4. Limit to 20 items
       allItems = allItems.slice(0, 20);
       
+      // MOCK OVERRIDE: If items are empty or generic, prepend Mock Data for Demo
+      if (items.length < 5 || true) { // FORCE MOCK for Demo as requested
+          allItems = [...MOCK_ECOMMERCE_NEWS, ...allItems].slice(0, 20);
+      }
+
       console.log('[LiveGlobalFeed] Combined', allItems.length, 'items from all sources');
       setItems(allItems);
       setIsLoading(false);

@@ -5,11 +5,11 @@ import path from 'path';
 // Force dynamic to prevent static optimization
 export const dynamic = 'force-dynamic';
 
-const PYTHON_TIMEOUT = 60000; // 60 seconds timeout
+const PYTHON_TIMEOUT = 300000; // 5 minutes timeout
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { topic } = body;
+    const { topic, mode = "GENERAL" } = body;
 
     if (!topic) {
       return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
     // Assuming the script is at python_backend/report_engine_only.py relative to project root
     const scriptPath = path.resolve(process.cwd(), 'python_backend', 'report_engine_only.py');
     
-    // Command: python python_backend/report_engine_only.py --query "topic"
+    // Command: python python_backend/report_engine_only.py --query "topic" --mode "MODE"
     // Using 'python' assumes it's in the PATH. In some envs might be 'python3'
-    const pythonProcess = spawn('python', [scriptPath, '--query', topic]);
+    const pythonProcess = spawn('python', [scriptPath, '--query', topic, '--mode', mode]);
 
     let outputData = '';
     let errorData = '';
@@ -82,20 +82,11 @@ export async function POST(request: NextRequest) {
     // Extract JSON from Python output
     let jsonOutput = null;
     try {
-      // 1. Try to extract using explicit delimiters (Most Robust)
       const delimiterMatch = outputData.match(/---JSON_START---([\s\S]*?)---JSON_END---/);
       if (delimiterMatch && delimiterMatch[1]) {
         jsonOutput = JSON.parse(delimiterMatch[1].trim());
-      } 
-      // 2. Fallback: Try to find JSON object using regex (if delimiters missing)
-      else {
-        console.warn("Delimiters not found, falling back to regex extraction");
-        // Use a balanced brace matching approach or just last valid JSON
-        // Simple regex often fails on nested objects, so we try to find the largest block
-        const jsonMatches = outputData.match(/\{[\s\S]*\}/); // Greedy match from first { to last }
-        if (jsonMatches) {
-          jsonOutput = JSON.parse(jsonMatches[0]);
-        }
+      } else {
+        throw new Error('Delimited JSON not found in Python output');
       }
     } catch (e) {
       console.error('Failed to extract JSON from Python output:', e);

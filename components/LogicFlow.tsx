@@ -4,9 +4,10 @@
  import mermaid from "mermaid"; 
  import { Maximize2, GitGraph, Share2 } from "lucide-react"; 
  
- const LogicFlow = ({ code }: { code?: string }) => { 
-  const chartRef = useRef<HTMLDivElement>(null); 
-  const [isExpanded, setIsExpanded] = useState(false); 
+const LogicFlow = ({ code }: { code?: string }) => { 
+ const chartRef = useRef<HTMLDivElement>(null); 
+ const [isExpanded, setIsExpanded] = useState(false); 
+ const [renderError, setRenderError] = useState<string | null>(null);
 
   // Default fallback graph if no code provided
   const defaultGraph = ` 
@@ -29,9 +30,7 @@
     Product :::opportunity 
   `; 
 
-  // Clean Mermaid code by removing any surrounding code blocks
   const cleanMermaidCode = (code: string) => {
-    // Remove ```mermaid and ``` tags
     return code.replace(/^```mermaid\n/, '').replace(/\n```$/, '').trim();
   };
 
@@ -45,8 +44,9 @@
   })();
 
   useEffect(() => { 
+    console.log("LogicFlow received code:", code);
+    setRenderError(null);
     if (chartRef.current) { 
-      // Reset the container before initializing
       chartRef.current.innerHTML = '';
       
       mermaid.initialize({ 
@@ -75,12 +75,10 @@
       // 手动渲染 
       const renderChart = async () => { 
         try { 
-          // Generate unique ID for each render to avoid conflicts
           const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
           const { svg } = await mermaid.render(id, graphToRender); 
           if (chartRef.current) {
              chartRef.current.innerHTML = svg;
-             // Add some basic styling to the SVG
              const svgElement = chartRef.current.querySelector('svg');
              if (svgElement) {
                 svgElement.style.maxWidth = '100%';
@@ -89,7 +87,7 @@
           }
         } catch (error) { 
           console.error("Mermaid 渲染失败:", error); 
-          // Fallback or error state could be handled here
+          setRenderError('render');
         } 
       }; 
 
@@ -122,9 +120,16 @@
        </div> 
  
        {/* 图表渲染区 */}
-       <div className="flex-1 p-6 overflow-auto flex justify-center items-center min-h-[400px]">
-         <div ref={chartRef} className="w-full h-full flex justify-center items-center opacity-90 hover:opacity-100 transition-opacity" />
-       </div> 
+      <div className="flex-1 p-6 overflow-hidden flex justify-center items-center h-[500px] w-full">
+        {renderError ? (
+          <div className="text-muted-foreground text-sm">
+            ⚠️ Graph data invalid, showing text report...
+            <pre className="mt-2 whitespace-pre-wrap text-xs opacity-80">{(code || '').trim()}</pre>
+          </div>
+        ) : (
+          <div ref={chartRef} className="w-full h-full flex justify-center items-center opacity-90 hover:opacity-100 transition-opacity [&>svg]:w-full [&>svg]:h-full [&>svg]:max-w-none" />
+        )}
+      </div> 
  
        {/* 底部 AI 旁白 */} 
        <div className="p-3 bg-purple-900/10 border-t border-purple-500/20 text-xs text-purple-200 font-mono flex items-center gap-2"> 

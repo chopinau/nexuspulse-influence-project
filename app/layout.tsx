@@ -37,6 +37,9 @@ export const metadata: Metadata = {
   },
 }
 
+import AppShell from "@/components/AppShell"
+import { AppProvider } from "@/components/AppProvider"
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -45,7 +48,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased`}>
-        {children}
+        <AppProvider>
+          <AppShell>
+            {children}
+          </AppShell>
+        </AppProvider>
         <Analytics />
       </body>
     </html>
