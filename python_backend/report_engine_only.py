@@ -29,6 +29,7 @@ from tavily import TavilyClient
 # from supabase import create_client, Client 
 
 from agent_skills import SKILL_SET, SEARCH_PROMPTS
+from memory_engine import check_cache as check_memory_cache, store_intel
 
 # ================= Configuration & Setup =================
 
@@ -246,8 +247,56 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
     # --- STEP 2: ROLE INITIALIZATION (PROMPT INJECTION) ---
     logger.info("🎭 Step 2: Role Initialization...")
     
-    # Get Persona Definition
-    persona_def = SKILL_SET.get(mode, SKILL_SET["GENERAL"])
+    # --- CORE FIX: FORCE UPPERCASE FOR SKILL MATCHING ---
+    raw_key = str(mode).strip()
+    skill_key = raw_key.upper()
+    
+    print(f"🔍 DEBUG: Frontend sent '{raw_key}', converted to Key '{skill_key}'")
+    
+    if skill_key in SKILL_SET:
+        print(f"✅ SUCCESS: Found custom persona for {skill_key}")
+        persona_def = SKILL_SET[skill_key]
+    else:
+        print(f"⚠️ WARNING: Key '{skill_key}' not found in SKILL_SET. Keys available: {list(SKILL_SET.keys())}")
+        print("🔻 Falling back to GENERAL persona.")
+        persona_def = SKILL_SET["GENERAL"]
+    
+    # Print final prompt summary
+    print(f"🎭 ACTIVE PERSONA: {persona_def[:50]}...")
+    # --- END CORE FIX ---
+
+from tools import audit_inventory_health, check_listing_compliance, generate_viral_structure
+
+# ... (Previous imports remain same)
+
+def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
+    # ... (Existing code)
+    
+    # 1. SIMULATE USER DATA (This represents what the user would upload)
+    mock_inventory = [{'sku': 'Old-Socks', 'stock': 5000, 'daily_sales': 2}] # Terrible inventory
+    mock_listing_text = "This anti-bacterial sock cures foot pain and is the best seller! Money back guarantee!" # Compliance nightmare
+    mock_product = "Ergo-Chair"
+    mock_pain = "back pain from sitting all day"
+
+    # 2. RUN SKILLS
+    cfo_insight = audit_inventory_health(mock_inventory)
+    risk_insight = check_listing_compliance(mock_listing_text)
+    tiktok_insight = generate_viral_structure(mock_product, mock_pain)
+
+    # 3. INJECT INTO PROMPT
+    skill_context = f"""
+=== 🕵️ REAL-TIME SKILL EXECUTION ===
+{cfo_insight}
+
+{risk_insight}
+
+{tiktok_insight}
+====================================
+INSTRUCTION:
+- The CFO MUST scream about the 'Old-Socks' inventory logic.
+- The Risk Officer MUST panic about the 'anti-bacterial' and 'cure' claims.
+- The Marketer MUST reference the 'Negative Hook' script.
+"""
 
     BULL_PROMPT = f"""
     You are **The Growth Strategist (Bull)**.
@@ -255,6 +304,9 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
     Tone: Optimistic, strategic, visionary.
     
     【CRITICAL INPUT】: You must strictly follow this SOP: {current_skill_sop}
+    
+    【SKILL EXECUTION DATA】:
+    {skill_context}
     
     YOUR MISSION:
     Based on the provided market data, identify EVERY possible growth opportunity.
@@ -276,6 +328,9 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
     
     【CRITICAL INPUT】: You must strictly follow this SOP: {current_skill_sop}
     
+    【SKILL EXECUTION DATA】:
+    {skill_context}
+    
     YOUR MISSION:
     Based on the provided market data, destroy the Bull's dream. Find every flaw.
     - Look for "Inventory Risks" (e.g., seasonal cliffs, saturation).
@@ -293,6 +348,9 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
     {persona_def}
     
     【CRITICAL INPUT】: Your decision framework is this SOP: {current_skill_sop}
+    
+    【SKILL EXECUTION DATA】:
+    {skill_context}
     
     YOUR MISSION:
     Synthesize the conflict between the Bull (Growth) and Bear (Risk).
@@ -325,7 +383,19 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
        - 具体可执行的措施
        - 优先级排序
     
-    5. **🔄 逻辑流程图**
+    5. **🎯 {skill_key} SPECIAL OUTPUT** (MANDATORY)
+       - You MUST include a dedicated section for your persona's specific deliverables.
+       - Refer to your "MANDATORY OUTPUT" list in your system prompt.
+       - For TIKTOK_MARKETING, this MUST include "3-Second Viral Hook Script" and "Trending Audio".
+       - For CROSS_BORDER_CFO, this MUST include "Unit Economics Breakdown".
+       - Format this as a distinct Markdown section with `##` header.
+    
+    6. **🛠️ EXPERT TOOL ANALYSIS** (MANDATORY)
+       - Analyze the provided skill execution data (Inventory, Compliance, Viral Structure).
+       - Highlight the critical findings from the Ruthless CFO, Compliance Lawyer, and Viral Strategist.
+       - Explain how these findings impact the final verdict.
+
+    7. **🔄 逻辑流程图**
        - 在报告末尾添加 Mermaid 代码块，展示决策流程
        - **Mermaid 兼容性**：只使用 `graph TD` 或 `flowchart LR` 语法。
        - **节点命名**：禁止在节点名称中使用特殊字符（如括号、单引号），否则前端 LogicFlow 会崩溃。
@@ -340,7 +410,7 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
            Evaluate --> Conclusion[最终结论]
        ```
     
-    6. **JSON METADATA (MANDATORY)**
+    8. **JSON METADATA (MANDATORY)**
        - At the very end of your response, output a valid JSON block containing these exact fields:
        ```json
        {{
@@ -371,6 +441,8 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
             "Content-Type": "application/json"
         }
         try:
+            # 打印实际使用的系统提示
+            print(f"DEBUG: ACTUAL SYSTEM PROMPT BEING USED:\n{system_p}\nDEBUG:")
             response = requests.post(api_url, json=payload, headers=headers, timeout=60)
             response.raise_for_status()
             content = response.json()["choices"][0]["message"]["content"]
@@ -659,38 +731,21 @@ def main():
     
     logger.info(f"🚀 Starting Intelligence Mission: {topic} (Mode: {mode})")
     
-    # --- STEP A: CHECK CACHE ---
-    # Note: Cache key should ideally include mode, but for now we query based on topic.
-    # If mode drastically changes output, we might want to skip cache or include mode in query.
-    # For now, let's keep it simple: if mode is GENERAL, use cache. If specialized, maybe skip or check carefully.
-    # Actually, let's just use the query. If the user changes mode, they usually change query or we rely on freshness.
-    cached_data = check_cache(topic)
+    # --- STEP A: CHECK MEMORY ENGINE ---
+    # Replaces old Supabase check with local file-based memory engine
+    cached_data = check_memory_cache(topic)
     if cached_data:
-        if isinstance(cached_data, dict) and "structured_data" not in cached_data:
-            risk_score = extract_risk_score(cached_data.get("verdict_text") or cached_data.get("content") or "")
-            cached_data["structured_data"] = {
-                "sentiment_score": 50,
-                "heat_index": 50,
-                "impact_score": 50,
-                "risk_score": risk_score,
-                "sop_based": False,
-                "sop_name": "general_consultant",
-            }
-        # We might want to re-run if we really want a different mode's output. 
-        # But assuming the cache is 'good enough' or we just accept it.
-        # To strictly support mode, we would need to store mode in DB.
-        # For this refactor, let's proceed with cache if found.
+        # Check if mode matches (optional, but good for strictness)
+        # For now, just return if found to be fast
         print("---JSON_START---")
         print(json.dumps(cached_data, ensure_ascii=False))
         print("---JSON_END---")
-        logger.success("🏆 Mission Accomplished (From Cache).")
+        logger.success("🏆 Mission Accomplished (From Memory Engine).")
         return
 
     # --- STEP B: GENERATE ---
     # 1. Collect Data
     context = collect_intelligence(topic, mode=mode)
-    if not context:
-        logger.warning("⚠️ No search results found. Proceeding with model base knowledge analysis.")
     
     # 2. Analyze
     report = analyze_with_llm(topic, context, mode=mode)
@@ -698,23 +753,26 @@ def main():
         logger.error("❌ Mission Aborted: Analysis Failed.")
         sys.exit(1)
         
-    # Construct the strictly required output package
+    # Construct Output Package
     output_package = {
         "status": "success",
         "report_title": report.get("report_title", ""),
         "verdict_text": report.get("verdict_text", ""),
         "full_markdown_report": report.get("full_markdown_report", ""),
-        "mermaid_code": report.get("mermaid_code", ""), # Pure code, no ``` tags
+        "mermaid_code": report.get("mermaid_code", ""),
         "debate_details": report.get("debate_details", ""),
         "structured_data": report.get("structured_data", {}),
     }
 
     # --- STEP C: SAVE (PERSISTENCE) ---
-    # 1. Save to 'reports' (The deep storage/cache)
+    # Store in Memory Engine
+    store_intel(topic, output_package, mode=mode)
+    
+    # Save to Supabase reports table
     save_report_to_db(topic, output_package)
     
-    # 2. Publish to 'market_news' (The public feed)
-    save_to_market_news(topic, report)
+    # Save to market_news table for Live Global Feed
+    save_to_market_news(topic, output_package)
     
     # --- STEP D: OUTPUT ---
     print("---JSON_START---")

@@ -8,6 +8,8 @@ import RiskGauge from "@/components/RiskGauge"
 import LogicFlow from "@/components/LogicFlow"
 import LiveGlobalFeed from "@/components/LiveGlobalFeed"
 import { TrendChart } from "@/components/trend-chart"
+import { CategorySelector } from "@/components/CategorySelector"
+import { GridBackground } from "@/app/page" // Reuse GridBackground from original page for now, or move it to a shared component
 import { toast } from "sonner"
 
 // --- Reused Components (Should be moved to components/ui/ in real refactor) ---
@@ -50,6 +52,13 @@ export default function DashboardPage() {
   const [reportData, setReportData] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [mode, setMode] = useState("GENERAL");
+
+  // Inject High-Growth Markets Data (Mock for SaaS Feel)
+  const growthMarkets = [
+    { name: "AI Wearables", growth: "+450%", risk: "High" },
+    { name: "Sustainable Swimwear", growth: "+120%", risk: "Med" },
+    { name: "Pet Tech", growth: "+85%", risk: "Low" }
+  ];
 
   const riskScore = useMemo(() => {
     const v = reportData?.structured_data?.risk_score;
@@ -168,14 +177,30 @@ export default function DashboardPage() {
           </IronCard>
 
           <IronCard title="Market Trends" icon={TrendingUp} className="flex-1 min-h-[250px]">
-             <div className="h-full w-full -m-4 p-4"> 
-                <TrendChart />
+             <div className="h-full w-full -m-4 p-4 flex flex-col gap-2"> 
+                {growthMarkets.map((m, i) => (
+                  <div key={i} className="flex justify-between items-center bg-white/5 p-2 rounded cursor-pointer hover:bg-white/10 transition-colors" onClick={() => setSearchQuery(m.name)}>
+                    <span className="text-xs text-gray-300">{m.name}</span>
+                    <div className="flex gap-2 text-xs">
+                      <span className="text-green-400 font-mono">{m.growth}</span>
+                      <span className={`px-1 rounded text-[10px] ${m.risk === 'High' ? 'bg-red-500/20 text-red-400' : m.risk === 'Med' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>
+                        {m.risk}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                <div className="mt-auto h-24 w-full">
+                   <TrendChart />
+                </div>
              </div>
           </IronCard>
         </div>
 
         {/* CENTER COLUMN: MAIN STAGE (Span 6) */}
         <div className="col-span-12 lg:col-span-6 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
+           
+           {/* Category Selector - New Dual-Track Component */}
+           <CategorySelector onSelect={(label) => setSearchQuery(label)} />
            
            {/* Search Bar */}
            <div className="bg-black/40 border border-white/10 backdrop-blur-md rounded-xl p-2 flex items-center gap-2 sticky top-0 z-20">
