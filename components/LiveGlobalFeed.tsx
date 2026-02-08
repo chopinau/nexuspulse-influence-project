@@ -71,42 +71,25 @@ const fetchRSS = async (rssUrl: string, sourceName: string) => {
   return [];
 };
 
-export default function LiveGlobalFeed({ topic }: { topic?: string }) {
+export default function LiveGlobalFeed({ topic, newsItems }: { topic?: string, newsItems?: any[] }) {
   const t = useTranslations('home.dynamics');
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Replaces all MOCK data with Real/AI data from Backend
   useEffect(() => {
-    const fetchNews = async () => {
-      if (!topic) return;
-      
-      setIsLoading(true);
-      try {
-          // Use the news endpoint (to be implemented)
-          // For now, we simulate the fetch call to the Python backend's news engine
-          // In a real scenario, this would call /api/news?topic={topic}
-          
-          // Since we are refactoring python_backend/news_engine.py, we need a way to get data.
-          // For this immediate task, we will assume the backend provides an endpoint.
-          // BUT, since we don't have the route yet, let's just clear the mocks first as requested.
-          
-          // Placeholder for real fetch
-          // const res = await fetch(`/api/news?topic=${encodeURIComponent(topic)}`);
-          // const data = await res.json();
-          // setItems(data);
-          
-          setItems([]); // Clear mocks for now until backend connects
-          
-      } catch (e) {
-          console.error("News fetch failed", e);
-      } finally {
-          setIsLoading(false);
-      }
-    };
-    
-    fetchNews();
-  }, [topic]);
+    if (newsItems && newsItems.length > 0) {
+        setItems(newsItems);
+        setIsLoading(false);
+    } else if (topic) {
+        // If topic exists but no initial data, maybe show loading or clear
+        setIsLoading(true);
+        // Simulate scanning delay if no data provided immediately
+        const timer = setTimeout(() => {
+            if (!newsItems) setIsLoading(false);
+        }, 2000);
+        return () => clearTimeout(timer);
+    }
+  }, [topic, newsItems]);
 
   return (
     <div className="space-y-4">

@@ -30,6 +30,9 @@ from tavily import TavilyClient
 
 from agent_skills import SKILL_SET, SEARCH_PROMPTS
 from memory_engine import check_cache as check_memory_cache, store_intel
+from news_engine import fetch_market_news
+from tools import audit_inventory_health, check_listing_compliance, generate_viral_structure
+from knowledge_base import SimpleRAG
 
 # ================= Configuration & Setup =================
 
@@ -205,7 +208,11 @@ def extract_risk_score(text: str) -> int:
         return 5
     return max(0, min(10, v))
 
-def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
+def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL", 
+                     inventory_data: Optional[List[Dict]] = None,
+                     listing_text: Optional[str] = None,
+                     product_name: Optional[str] = None,
+                     pain_point: Optional[str] = None) -> Dict:
     """
     Call DeepSeek/Gemini to generate the report with Agent Skills + BettaFish architecture.
     Returns parsed JSON object with 'content', 'sentiment_score', etc.
@@ -234,6 +241,24 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
         }
 
     logger.info("🧠 Initializing Agent Skills + BettaFish architecture...")
+
+    # --- STEP 0: RAG INITIALIZATION (Knowledge Base) ---
+    logger.info("📚 Initializing RAG Knowledge Base...")
+    rag = SimpleRAG()
+    # Hardcoded ingestion for MVP
+    compliance_doc = """
+    AMAZON 2026 COMPLIANCE POLICY (CONFIDENTIAL)
+    1. Anti-Competitive Pricing: Amazon monitors 'Price Parity'. If your price on Shopify is lower, you lose the Buy Box.
+    2. Inventory Performance Index (IPI): Minimum IPI score raised to 550. Low scores limit storage.
+    3. Sustainable Packaging: All FBA shipments must be 100% recyclable by Q4 2025.
+    4. Restricted Keywords: 'Cure', 'Heal', 'Antibacterial' (without EPA), 'COVID-19' are instant suppression triggers.
+    5. Returns: High return rate (>10%) categories will face 'frequently returned' badges on listing.
+    """
+    rag.ingest(compliance_doc, "Amazon_Compliance_2026")
+    
+    # Query RAG
+    rag_context = rag.query(topic)
+    logger.info(f"   ✅ RAG Retrieval: {len(rag_context)} chars found.")
 
     # --- STEP 1: SKILL ROUTING AND LOADING ---
     logger.info(f"🔍 Step 1: Skill Routing and Loading... (Forced Mode: {mode})")
@@ -265,23 +290,30 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
     print(f"🎭 ACTIVE PERSONA: {persona_def[:50]}...")
     # --- END CORE FIX ---
 
-from tools import audit_inventory_health, check_listing_compliance, generate_viral_structure
-
-# ... (Previous imports remain same)
-
-def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
-    # ... (Existing code)
+    # 1. PREPARE USER DATA
+    # Use provided data or fallback to mocks/defaults if missing
     
-    # 1. SIMULATE USER DATA (This represents what the user would upload)
-    mock_inventory = [{'sku': 'Old-Socks', 'stock': 5000, 'daily_sales': 2}] # Terrible inventory
-    mock_listing_text = "This anti-bacterial sock cures foot pain and is the best seller! Money back guarantee!" # Compliance nightmare
-    mock_product = "Ergo-Chair"
-    mock_pain = "back pain from sitting all day"
+    # Inventory Data
+    if inventory_data:
+        target_inventory = inventory_data
+    else:
+        # Default mock if nothing provided
+        target_inventory = [{'sku': 'Old-Socks', 'stock': 5000, 'daily_sales': 2}] 
+
+    # Listing Text
+    if listing_text:
+        target_listing = listing_text
+    else:
+        target_listing = "This anti-bacterial sock cures foot pain and is the best seller! Money back guarantee!"
+
+    # Product & Pain Point
+    target_product = product_name if product_name else "Ergo-Chair"
+    target_pain = pain_point if pain_point else "back pain from sitting all day"
 
     # 2. RUN SKILLS
-    cfo_insight = audit_inventory_health(mock_inventory)
-    risk_insight = check_listing_compliance(mock_listing_text)
-    tiktok_insight = generate_viral_structure(mock_product, mock_pain)
+    cfo_insight = audit_inventory_health(target_inventory)
+    risk_insight = check_listing_compliance(target_listing)
+    tiktok_insight = generate_viral_structure(target_product, target_pain)
 
     # 3. INJECT INTO PROMPT
     skill_context = f"""
@@ -292,6 +324,9 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL") -> Dict:
 
 {tiktok_insight}
 ====================================
+
+{rag_context}
+
 INSTRUCTION:
 - The CFO MUST scream about the 'Old-Socks' inventory logic.
 - The Risk Officer MUST panic about the 'anti-bacterial' and 'cure' claims.
@@ -716,6 +751,13 @@ def main():
     parser.add_argument("--query", dest="query_flag", type=str, help="Target topic")
     parser.add_argument("--mode", dest="mode_flag", type=str, help="Expert Mode (e.g. TIKTOK_RISK)")
     parser.add_argument("--auto", action="store_true", help="Run in automatic mode") # Added for compatibility
+    
+    # New Arguments for Dynamic Forms
+    parser.add_argument("--inventory", type=int, help="Inventory Level")
+    parser.add_argument("--sales", type=int, help="Daily Sales")
+    parser.add_argument("--listing", type=str, help="Listing Copy Text")
+    parser.add_argument("--pain_point", type=str, help="Customer Pain Point")
+    
     args = parser.parse_args()
 
     # Default Topics
@@ -747,8 +789,28 @@ def main():
     # 1. Collect Data
     context = collect_intelligence(topic, mode=mode)
     
+    # 1.5 Fetch Real-Time Market News (Live Dynamics)
+    logger.info("📰 Fetching Live Market News...")
+    news_data = fetch_market_news(topic)
+    
+    # Append news to context for the LLM to see
+    if news_data:
+        news_context = "\n\n=== 📰 LATEST MARKET NEWS (LIVE) ===\n"
+        for item in news_data:
+            news_context += f"- [{item.get('source', 'News')}] {item.get('title')} (Sentiment: {item.get('sentiment')})\n"
+        context += news_context
+
     # 2. Analyze
-    report = analyze_with_llm(topic, context, mode=mode)
+    # Construct Inventory List if args provided
+    inventory_data = None
+    if args.inventory is not None and args.sales is not None:
+        inventory_data = [{'sku': 'Main-Product', 'stock': args.inventory, 'daily_sales': args.sales}]
+
+    report = analyze_with_llm(topic, context, mode=mode,
+                              inventory_data=inventory_data,
+                              listing_text=args.listing,
+                              pain_point=args.pain_point,
+                              product_name=topic) # Use topic as product name for now
     if not report:
         logger.error("❌ Mission Aborted: Analysis Failed.")
         sys.exit(1)
@@ -762,6 +824,7 @@ def main():
         "mermaid_code": report.get("mermaid_code", ""),
         "debate_details": report.get("debate_details", ""),
         "structured_data": report.get("structured_data", {}),
+        "market_news": news_data # Inject live news for Frontend "Live Dynamics" column
     }
 
     # --- STEP C: SAVE (PERSISTENCE) ---

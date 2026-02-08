@@ -9,7 +9,7 @@ const PYTHON_TIMEOUT = 300000; // 5 minutes timeout
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { topic, mode = "GENERAL" } = body;
+    const { topic, mode = "GENERAL", inventory, daily_sales, listing_text, pain_point } = body;
 
     if (!topic) {
       return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
@@ -19,9 +19,16 @@ export async function POST(request: NextRequest) {
     // Assuming the script is at python_backend/report_engine_only.py relative to project root
     const scriptPath = path.resolve(process.cwd(), 'python_backend', 'report_engine_only.py');
     
-    // Command: python python_backend/report_engine_only.py --query "topic" --mode "MODE"
-    // Using 'python' assumes it's in the PATH. In some envs might be 'python3'
-    const pythonProcess = spawn('python', [scriptPath, '--query', topic, '--mode', mode]);
+    // Command: python python_backend/report_engine_only.py --query "topic" --mode "MODE" ...
+    const args = [scriptPath, '--query', topic, '--mode', mode];
+    
+    // Append optional fields if they exist
+    if (inventory !== undefined) args.push('--inventory', inventory.toString());
+    if (daily_sales !== undefined) args.push('--sales', daily_sales.toString());
+    if (listing_text) args.push('--listing', listing_text);
+    if (pain_point) args.push('--pain_point', pain_point);
+
+    const pythonProcess = spawn('python', args);
 
     let outputData = '';
     let errorData = '';

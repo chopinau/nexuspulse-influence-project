@@ -9,6 +9,7 @@ import LogicFlow from "@/components/LogicFlow"
 import LiveGlobalFeed from "@/components/LiveGlobalFeed"
 import { TrendChart } from "@/components/trend-chart"
 import { CategorySelector } from "@/components/CategorySelector"
+import { PersonaInput } from "@/components/PersonaInput"
 import { GridBackground } from "@/app/page" // Reuse GridBackground from original page for now, or move it to a shared component
 import { toast } from "sonner"
 
@@ -67,11 +68,9 @@ export default function DashboardPage() {
     return extractRiskScore(reportData.verdict_text);
   }, [reportData]);
 
-  const handleGenerate = async () => {
-    if (!searchQuery.trim()) {
-        toast.error("Please enter a topic");
-        return;
-    }
+  const handleGenerate = async (inputData: any) => {
+    // Input validation handled in PersonaInput, but check topic just in case
+    if (!inputData.topic) return;
 
     setLoading(true);
     setReportData(null);
@@ -102,7 +101,7 @@ export default function DashboardPage() {
         const res = await fetch('/api/agent-forum', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topic: searchQuery, mode: mode }) 
+            body: JSON.stringify(inputData) 
         });
         
         const data = await res.json();
@@ -202,36 +201,14 @@ export default function DashboardPage() {
            {/* Category Selector - New Dual-Track Component */}
            <CategorySelector onSelect={(label) => setSearchQuery(label)} />
            
-           {/* Search Bar */}
-           <div className="bg-black/40 border border-white/10 backdrop-blur-md rounded-xl p-2 flex items-center gap-2 sticky top-0 z-20">
-              <Search className="w-5 h-5 text-gray-400 ml-2" />
-              <select
-                value={mode}
-                onChange={(e) => setMode(e.target.value)}
-                className="shrink-0 bg-blue-900/50 border border-cyan-500/30 text-white px-2 h-10 rounded-lg text-sm outline-none focus:border-cyan-500 transition-colors min-w-[190px] cursor-pointer"
-              >
-                <option value="GENERAL" className="bg-black">General Strategy</option>
-                <option value="TIKTOK_MARKETING" className="bg-black">TikTok Viral Marketing</option>
-                <option value="TIKTOK_RISK" className="bg-black">TikTok Risk/Compliance</option>
-                <option value="CROSS_BORDER_CFO" className="bg-black">Financial/CFO Audit</option>
-                <option value="BRAND_ARCHITECT" className="bg-black">Brand Building</option>
-              </select>
-              <input 
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => !loading && e.key === 'Enter' && handleGenerate()}
-                placeholder="ENTER TARGET..."
-                className="flex-1 bg-transparent border-none outline-none text-white h-10 placeholder:text-gray-600 font-mono min-w-0"
-              />
-              <button 
-                 onClick={handleGenerate}
-                 disabled={loading}
-                 className="shrink-0 bg-cyan-600 hover:bg-cyan-500 text-white px-6 h-10 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider"
-              >
-                 {loading ? loadingText : "Execute"}
-              </button>
-           </div>
+           {/* Persona-Driven Dynamic Input Form */}
+           <PersonaInput 
+             mode={mode}
+             onModeChange={setMode}
+             onExecute={handleGenerate}
+             isLoading={loading}
+             loadingText={loadingText}
+           />
 
            {/* Animated Stream Content */}
            <AnimatePresence>
@@ -331,7 +308,7 @@ export default function DashboardPage() {
 
            <IronCard title="Live Dynamics" icon={Globe} className="flex-1 flex flex-col min-h-[400px]">
               <div className="flex-1 overflow-hidden">
-                 <LiveGlobalFeed topic={searchQuery} />
+                 <LiveGlobalFeed topic={searchQuery} newsItems={reportData?.market_news} />
               </div>
            </IronCard>
         </div>
