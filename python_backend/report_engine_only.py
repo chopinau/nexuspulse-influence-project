@@ -245,16 +245,11 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL",
     # --- STEP 0: RAG INITIALIZATION (Knowledge Base) ---
     logger.info("📚 Initializing RAG Knowledge Base...")
     rag = SimpleRAG()
-    # Hardcoded ingestion for MVP
-    compliance_doc = """
-    AMAZON 2026 COMPLIANCE POLICY (CONFIDENTIAL)
-    1. Anti-Competitive Pricing: Amazon monitors 'Price Parity'. If your price on Shopify is lower, you lose the Buy Box.
-    2. Inventory Performance Index (IPI): Minimum IPI score raised to 550. Low scores limit storage.
-    3. Sustainable Packaging: All FBA shipments must be 100% recyclable by Q4 2025.
-    4. Restricted Keywords: 'Cure', 'Heal', 'Antibacterial' (without EPA), 'COVID-19' are instant suppression triggers.
-    5. Returns: High return rate (>10%) categories will face 'frequently returned' badges on listing.
-    """
-    rag.ingest(compliance_doc, "Amazon_Compliance_2026")
+    
+    # Dynamic Loading from data/knowledge
+    knowledge_dir = project_root_dir / 'data' / 'knowledge'
+    logger.info(f"📂 Loading knowledge from: {knowledge_dir}")
+    rag.load_directory(str(knowledge_dir))
     
     # Query RAG
     rag_context = rag.query(topic)

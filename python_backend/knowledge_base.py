@@ -1,10 +1,35 @@
 # -*- coding: utf-8 -*-
 import json
+import os
+import glob
 from typing import List, Dict
 
 class SimpleRAG:
     def __init__(self):
         self.chunks = []
+
+    def load_directory(self, path: str):
+        """
+        Load all .txt and .md files from a directory.
+        """
+        if not os.path.exists(path):
+            print(f"⚠️ [RAG] Directory not found: {path}")
+            return
+
+        files = glob.glob(os.path.join(path, "*.txt")) + glob.glob(os.path.join(path, "*.md"))
+        count = 0
+        
+        for file_path in files:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                    filename = os.path.basename(file_path)
+                    self.ingest(text, filename)
+                    count += 1
+            except Exception as e:
+                print(f"❌ [RAG] Failed to read {file_path}: {e}")
+        
+        print(f"📚 [RAG] Ingested {count} documents from {path}")
 
     def ingest(self, text: str, doc_id: str):
         """
