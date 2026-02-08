@@ -306,7 +306,10 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL",
     target_pain = pain_point if pain_point else "back pain from sitting all day"
 
     # 2. RUN SKILLS
-    cfo_insight = audit_inventory_health(target_inventory)
+    cfo_result = audit_inventory_health(target_inventory)
+    cfo_insight = cfo_result.get("report", "")
+    inventory_chart_data = cfo_result.get("chart_data", [])
+    
     risk_insight = check_listing_compliance(target_listing)
     tiktok_insight = generate_viral_structure(target_product, target_pain)
 
@@ -567,6 +570,33 @@ INSTRUCTION:
     # Generate report title
     report_title = f"{topic} Market Sentiment & Strategic Analysis"
 
+    # --- GENERATE VISUALIZATION DATA ---
+    # Heuristic generation based on analysis scores
+    # Scale: 0-100
+    
+    # Supply Chain: High risk -> Low score
+    supply_chain_score = max(10, 100 - (risk_score * 10))
+    
+    # Brand Power: High sentiment -> High score
+    brand_power_score = sentiment_score
+    
+    # Compliance: High risk -> Low score
+    compliance_score = max(20, 100 - (risk_score * 12))
+    
+    # Cash Flow: Linked to Impact/Opportunity
+    cash_flow_score = impact_score
+    
+    # Innovation: Linked to Market Heat
+    innovation_score = heat_index
+    
+    radar_data = [
+        {"subject": "Supply Chain", "A": supply_chain_score, "fullMark": 100},
+        {"subject": "Brand Power", "A": brand_power_score, "fullMark": 100},
+        {"subject": "Compliance", "A": compliance_score, "fullMark": 100},
+        {"subject": "Cash Flow", "A": cash_flow_score, "fullMark": 100},
+        {"subject": "Innovation", "A": innovation_score, "fullMark": 100}
+    ]
+
     return {
         "status": "success",
         "report_title": report_title,
@@ -581,6 +611,10 @@ INSTRUCTION:
             "risk_score": risk_score, # Pass risk score explicitly
             "sop_based": True,
             "sop_name": skill_name
+        },
+        "visualization_data": {
+            "inventory_mix": inventory_chart_data,
+            "radar_data": radar_data
         }
     }
 
@@ -819,6 +853,7 @@ def main():
         "mermaid_code": report.get("mermaid_code", ""),
         "debate_details": report.get("debate_details", ""),
         "structured_data": report.get("structured_data", {}),
+        "visualization_data": report.get("visualization_data", {}),
         "market_news": news_data # Inject live news for Frontend "Live Dynamics" column
     }
 

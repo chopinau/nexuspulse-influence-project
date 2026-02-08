@@ -4,9 +4,15 @@ def audit_inventory_health(sku_data: list):
     """
     Advanced Inventory Logic based on Amazon IPI & Thrasio-style Audits.
     Metrics: Days of Supply (DOS) and Sell-Through Rate (STR).
+    Returns a dict with 'report' (str) and 'chart_data' (list).
     """
     report = []
     report.append("📉 [RUTHLESS CFO INVENTORY AUDIT]")
+    
+    # Chart Data Counters
+    toxic_stock = 0
+    slow_stock = 0
+    healthy_stock = 0
     
     for item in sku_data:
         sku = item.get('sku', 'Unknown')
@@ -34,18 +40,43 @@ def audit_inventory_health(sku_data: list):
         if dos > 180:
             status = "🔴 TOXIC ASSET (死库存)"
             action = f"LIQUIDATE NOW. STR is {str_score} (Target > 2.0). You are paying 'Aged Inventory Surcharge'."
+            toxic_stock += stock
         elif dos > 90:
             status = "🟠 BLOATED (臃肿)"
             action = "Run Lightning Deal. Your IPI score is at risk."
+            slow_stock += stock
         elif dos < 21:
             status = "⚠️ STOCKOUT RISK"
             action = "Air Freight immediately if lead time > 15 days."
+            healthy_stock += stock
+        else:
+            healthy_stock += stock
             
         report.append(f"📦 SKU: {sku} | DOS: {dos} days | STR: {str_score}")
         report.append(f"   Status: {status}")
         report.append(f"   👉 Order: {action}")
         
-    return "\n".join(report)
+    # Construct Chart Data (Pie Chart)
+    # Avoid zero division if total is 0
+    total_stock = toxic_stock + slow_stock + healthy_stock
+    if total_stock == 0:
+        # Default mock if empty
+        chart_data = [
+            {"name": "Toxic (Dead Stock)", "value": 0, "fill": "#ef4444"},
+            {"name": "Slow Moving", "value": 0, "fill": "#f59e0b"},
+            {"name": "Healthy", "value": 100, "fill": "#22c55e"}
+        ]
+    else:
+        chart_data = [
+            {"name": "Toxic (Dead Stock)", "value": toxic_stock, "fill": "#ef4444"},
+            {"name": "Slow Moving", "value": slow_stock, "fill": "#f59e0b"},
+            {"name": "Healthy", "value": healthy_stock, "fill": "#22c55e"}
+        ]
+        
+    return {
+        "report": "\n".join(report),
+        "chart_data": chart_data
+    }
 
 def check_listing_compliance(text: str):
     """
