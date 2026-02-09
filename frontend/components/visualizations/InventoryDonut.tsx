@@ -6,6 +6,28 @@ interface InventoryDonutProps {
 }
 
 export function InventoryDonut({ data }: InventoryDonutProps) {
+  // Data safety check
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-xl p-6 shadow-lg">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-sm font-bold text-gray-100 uppercase tracking-wider">
+            Inventory Health
+          </h3>
+          <div className="px-2 py-1 bg-cyan-900/30 border border-cyan-700/50 rounded-full">
+            <span className="text-xs font-mono text-cyan-400">Real-time</span>
+          </div>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 h-48">
+          <div className="w-48 h-48 flex items-center justify-center text-gray-400">
+            No Data Available
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-xl p-6 shadow-lg">
       <div className="flex justify-between items-center mb-6">

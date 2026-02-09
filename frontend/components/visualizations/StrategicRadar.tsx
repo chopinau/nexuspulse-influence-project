@@ -6,6 +6,26 @@ interface StrategicRadarProps {
 }
 
 export function StrategicRadar({ data }: StrategicRadarProps) {
+  // Data safety check
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-xl p-6 shadow-lg">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-sm font-bold text-gray-100 uppercase tracking-wider">
+            Strategic Positioning
+          </h3>
+          <div className="px-2 py-1 bg-purple-900/30 border border-purple-700/50 rounded-full">
+            <span className="text-xs font-mono text-purple-400">Strategic</span>
+          </div>
+        </div>
+        
+        <div className="h-64 flex items-center justify-center text-gray-400">
+          No Data Available
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-xl p-6 shadow-lg">
       <div className="flex justify-between items-center mb-6">

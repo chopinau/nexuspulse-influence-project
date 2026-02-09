@@ -51,7 +51,7 @@ export default function ReportView({ report }: ReportViewProps) {
           <details className="mt-6 bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-xl overflow-hidden">
             <summary className="p-4 font-medium text-white cursor-pointer flex items-center gap-2 hover:bg-gray-800/50 transition-colors">
               <span className="text-lg">📜</span>
-              Read Full Strategy Briefing & Debate Logs
+              View Full Strategy Briefing
             </summary>
             <div className="p-6 border-t border-gray-800">
               <div className="prose prose-invert max-w-none">

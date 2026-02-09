@@ -16,7 +16,7 @@ const AVAILABLE_SKILLS = [
   "品牌营销策略"
 ];
 
-export function GridBackground() {
+function GridBackground() {
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
       {/* Base gradient */}
