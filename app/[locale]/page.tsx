@@ -16,8 +16,37 @@ const AVAILABLE_SKILLS = [
   "品牌营销策略"
 ];
 
-function GridBackground() {
-  return (
+// Iron Man Style Card Component
+const IronCard = ({ children, className = "", title, icon: Icon }: { children: React.ReactNode, className?: string, title?: string, icon?: any }) => (
+  <div className={`bg-black/40 border border-white/10 backdrop-blur-md rounded-xl overflow-hidden relative group ${className}`}>
+    {/* Tech borders */}
+    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-cyan-500/50 rounded-tl-md" />
+    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-cyan-500/50 rounded-tr-md" />
+    <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-cyan-500/50 rounded-bl-md" />
+    <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-cyan-500/50 rounded-br-md" />
+    
+    {title && (
+      <div className="px-4 py-3 border-b border-white/5 bg-white/5 flex items-center gap-2">
+        {Icon && <Icon className="w-4 h-4 text-cyan-400" />}
+        <h3 className="text-sm font-bold text-cyan-100 uppercase tracking-wider">{title}</h3>
+      </div>
+    )}
+    <div className="p-4">
+      {children}
+    </div>
+  </div>
+);
+
+export default function Dashboard() {
+  const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState("");
+  const [reportData, setReportData] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [filteredSkills, setFilteredSkills] = useState<string[]>([]);
+
+  // GridBackground component moved inside Dashboard
+  const GridBackground = () => (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
       {/* Base gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-black via-zinc-950 to-black" />
@@ -72,36 +101,6 @@ function GridBackground() {
       />
     </div>
   );
-}
-
-// Iron Man Style Card Component
-const IronCard = ({ children, className = "", title, icon: Icon }: { children: React.ReactNode, className?: string, title?: string, icon?: any }) => (
-  <div className={`bg-black/40 border border-white/10 backdrop-blur-md rounded-xl overflow-hidden relative group ${className}`}>
-    {/* Tech borders */}
-    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-cyan-500/50 rounded-tl-md" />
-    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-cyan-500/50 rounded-tr-md" />
-    <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-cyan-500/50 rounded-bl-md" />
-    <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-cyan-500/50 rounded-br-md" />
-    
-    {title && (
-      <div className="px-4 py-3 border-b border-white/5 bg-white/5 flex items-center gap-2">
-        {Icon && <Icon className="w-4 h-4 text-cyan-400" />}
-        <h3 className="text-sm font-bold text-cyan-100 uppercase tracking-wider">{title}</h3>
-      </div>
-    )}
-    <div className="p-4">
-      {children}
-    </div>
-  </div>
-);
-
-export default function Dashboard() {
-  const [loading, setLoading] = useState(false);
-  const [loadingText, setLoadingText] = useState("");
-  const [reportData, setReportData] = useState<any>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [filteredSkills, setFilteredSkills] = useState<string[]>([]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
