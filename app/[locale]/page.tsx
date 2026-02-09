@@ -6,6 +6,8 @@ import { motion } from "framer-motion"
 import LogicFlow from "@/components/LogicFlow"
 import LiveGlobalFeed from "@/components/LiveGlobalFeed"
 import { TrendChart } from "@/components/trend-chart"
+import GridBackground from "@/components/GridBackground"
+import IronCard from "@/components/IronCard"
 
 // Available skills for dropdown
 const AVAILABLE_SKILLS = [
@@ -16,27 +18,6 @@ const AVAILABLE_SKILLS = [
   "品牌营销策略"
 ];
 
-// Iron Man Style Card Component
-const IronCard = ({ children, className = "", title, icon: Icon }: { children: React.ReactNode, className?: string, title?: string, icon?: any }) => (
-  <div className={`bg-black/40 border border-white/10 backdrop-blur-md rounded-xl overflow-hidden relative group ${className}`}>
-    {/* Tech borders */}
-    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-cyan-500/50 rounded-tl-md" />
-    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-cyan-500/50 rounded-tr-md" />
-    <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-cyan-500/50 rounded-bl-md" />
-    <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-cyan-500/50 rounded-br-md" />
-    
-    {title && (
-      <div className="px-4 py-3 border-b border-white/5 bg-white/5 flex items-center gap-2">
-        {Icon && <Icon className="w-4 h-4 text-cyan-400" />}
-        <h3 className="text-sm font-bold text-cyan-100 uppercase tracking-wider">{title}</h3>
-      </div>
-    )}
-    <div className="p-4">
-      {children}
-    </div>
-  </div>
-);
-
 export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
@@ -44,63 +25,6 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredSkills, setFilteredSkills] = useState<string[]>([]);
-
-  // GridBackground component moved inside Dashboard
-  const GridBackground = () => (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-      {/* Base gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black via-zinc-950 to-black" />
-      
-      {/* Animated gradient orbs */}
-      <motion.div
-        className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full bg-cyan-500/5 blur-3xl"
-        animate={{
-          x: [0, 100, 0],
-          y: [0, 50, 0],
-          scale: [1, 1.1, 1],
-        }}
-        transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute bottom-0 right-1/4 w-[600px] h-[600px] rounded-full bg-purple-500/5 blur-3xl"
-        animate={{
-          x: [0, -100, 0],
-          y: [0, -50, 0],
-          scale: [1, 1.2, 1],
-        }}
-        transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-      />
-      
-      {/* Grid pattern */}
-      <div
-        className="absolute inset-0 opacity-[0.05]"
-        style={{
-          backgroundImage: `
-            linear-gradient(to right, #22d3ee 1px, transparent 1px),
-            linear-gradient(to bottom, #22d3ee 1px, transparent 1px)
-          `,
-          backgroundSize: "40px 40px"
-        }}
-      />
-      
-      {/* Radial overlay for depth */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: "radial-gradient(ellipse at center, transparent 0%, #000 80%)"
-        }}
-      />
-      
-      {/* Scan line effect */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-20"
-        style={{
-          background: "linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.5) 50%)",
-          backgroundSize: "100% 4px"
-        }}
-      />
-    </div>
-  );
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
