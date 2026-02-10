@@ -6,21 +6,42 @@ import os
 # --- PATH CONFIGURATION ---
 # In Vercel, the function runs in a specific directory.
 # We need to make sure 'python_backend' is in sys.path.
+print(f"DEBUG: Current working directory: {os.getcwd()}")
+print(f"DEBUG: Directory contents: {os.listdir(os.getcwd())}")
+
 # Method 1: Check if 'python_backend' exists in current dir (if copied by includeFiles)
-if os.path.exists(os.path.join(os.getcwd(), 'python_backend')):
-    sys.path.append(os.path.join(os.getcwd(), 'python_backend'))
+python_backend_path = os.path.join(os.getcwd(), 'python_backend')
+if os.path.exists(python_backend_path):
+    print(f"DEBUG: Found python_backend at: {python_backend_path}")
+    sys.path.append(python_backend_path)
 # Method 2: Check relative path (standard dev env)
 else:
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'python_backend'))
+    python_backend_path = os.path.join(os.path.dirname(__file__), '..', 'python_backend')
+    print(f"DEBUG: Trying python_backend at: {python_backend_path}")
+    print(f"DEBUG: Does this path exist? {os.path.exists(python_backend_path)}")
+    if os.path.exists(python_backend_path):
+        sys.path.append(python_backend_path)
+    else:
+        print(f"DEBUG: python_backend not found at either location")
+
+print(f"DEBUG: sys.path: {sys.path}")
 
 # --- IMPORTS ---
 try:
     from report_engine_only import analyze_with_llm, collect_intelligence, fetch_market_news, save_report_to_db, save_to_market_news, check_memory_cache, store_intel
+    print("DEBUG: Import successful!")
 except ImportError as e:
     # Fallback for debugging import errors
     print(f"IMPORT ERROR: {e}")
     print(f"CWD: {os.getcwd()}")
     print(f"LS: {os.listdir(os.getcwd())}")
+    # Try to import individual modules
+    try:
+        import report_engine_only
+        print("DEBUG: Could import report_engine_only module, but not all functions")
+        print(f"DEBUG: Module attributes: {dir(report_engine_only)}")
+    except ImportError as e2:
+        print(f"DEBUG: Could not import report_engine_only module at all: {e2}")
     raise e
 
 class handler(BaseHTTPRequestHandler):
