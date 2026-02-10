@@ -25,6 +25,19 @@ from pathlib import Path
 from dotenv import load_dotenv
 from loguru import logger
 from tavily import TavilyClient
+
+# Optional Imports for Heavy Libraries
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    WEASYPRINT_AVAILABLE = False
 # Removed supabase dependency to avoid pyiceberg/pyroaring/visual c++ issues
 # from supabase import create_client, Client 
 

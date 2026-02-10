@@ -5,8 +5,8 @@ pydantic-settings
 openai
 tenacity
 jinja2
-weasyprint
+# weasyprint  <-- Removed: Too heavy for Vercel Serverless (requires binaries + large size)
+# matplotlib  <-- Removed: Too heavy for Vercel Serverless (large size)
 supabase
-matplotlib
 tavily-python
 requests
