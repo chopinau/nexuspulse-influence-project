@@ -88,6 +88,11 @@ export default function Dashboard() {
         if (data.error) {
             console.error("Agent Error:", data.error);
             setLoadingText("❌ 系统故障: " + data.error);
+            setReportData(null);
+        } else if (data.status === 'error') {
+            console.error("Agent Status Error:", data);
+            setLoadingText("❌ 系统故障: " + data.verdict_text);
+            setReportData(null);
         } else {
             setReportData(data);
         }

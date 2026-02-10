@@ -42,6 +42,30 @@ export async function POST(request: NextRequest) {
     // Assuming the script is at python_backend/report_engine_only.py relative to project root
     const scriptPath = path.resolve(process.cwd(), 'python_backend', 'report_engine_only.py');
     
+    // Check if script exists
+    const fs = require('fs');
+    if (!fs.existsSync(scriptPath)) {
+      console.error(`Script not found: ${scriptPath}`);
+      return NextResponse.json(
+        {
+          status: 'error',
+          report_title: `关于 ${topic} 的分析报告`,
+          verdict_text: '报告生成失败',
+          full_markdown_report: `# 关于 ${topic} 的深度战略研判\n\n## 📋 核心结论\n> 决策建议：报告生成失败\n> \n> 后端处理过程中出现错误。\n\n## ⚖️ 多空博弈\n分析失败\n\n## 📊 数据支持\n无数据\n\n## 💡 行动建议\n1. [P1] 重要：请尝试更换关键词\n2. [P2] 次要：稍后再试\n3. [P3] 常规：检查网络连接\n\n## 🔄 逻辑流程图\n\n\`\`\`mermaid\ngraph TD\n    Start[开始分析] --> Error[分析失败]\n    Error --> Retry[建议重试]\n\`\`\``,
+          debate_details: '分析失败',
+          mermaid_code: 'graph TD\n    Start[开始分析] --> Error[分析失败]\n    Error --> Retry[建议重试]',
+          structured_data: {
+            sentiment_score: 50,
+            heat_index: 0,
+            impact_score: 0,
+            sop_based: false,
+            sop_name: 'general_consultant'
+          }
+        },
+        { status: 200 } // Return 200 instead of 500 to avoid frontend errors
+      );
+    }
+    
     // Command: python python_backend/report_engine_only.py --query "topic" --mode "MODE" ...
     const args = [scriptPath, '--query', topic, '--mode', mode];
     
@@ -66,6 +90,11 @@ export async function POST(request: NextRequest) {
       errorData += data.toString();
       // Log stderr to console for server-side debugging
       console.error(`[Python stderr]: ${data}`);
+    });
+
+    // Handle error event
+    pythonProcess.on('error', (error) => {
+      console.error(`Spawn error: ${error}`);
     });
 
     // Wait for process to close with timeout
