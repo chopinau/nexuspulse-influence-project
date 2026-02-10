@@ -3,10 +3,25 @@ import json
 import sys
 import os
 
-# Add python_backend to path so we can import modules
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'python_backend'))
+# --- PATH CONFIGURATION ---
+# In Vercel, the function runs in a specific directory.
+# We need to make sure 'python_backend' is in sys.path.
+# Method 1: Check if 'python_backend' exists in current dir (if copied by includeFiles)
+if os.path.exists(os.path.join(os.getcwd(), 'python_backend')):
+    sys.path.append(os.path.join(os.getcwd(), 'python_backend'))
+# Method 2: Check relative path (standard dev env)
+else:
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'python_backend'))
 
-from report_engine_only import analyze_with_llm, collect_intelligence, fetch_market_news, save_report_to_db, save_to_market_news, check_memory_cache, store_intel
+# --- IMPORTS ---
+try:
+    from report_engine_only import analyze_with_llm, collect_intelligence, fetch_market_news, save_report_to_db, save_to_market_news, check_memory_cache, store_intel
+except ImportError as e:
+    # Fallback for debugging import errors
+    print(f"IMPORT ERROR: {e}")
+    print(f"CWD: {os.getcwd()}")
+    print(f"LS: {os.listdir(os.getcwd())}")
+    raise e
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
