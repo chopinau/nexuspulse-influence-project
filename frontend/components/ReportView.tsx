@@ -1,4 +1,6 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import KeyInsightCards from './visualizations/KeyInsightCards';
 import StrategicRadar from './visualizations/StrategicRadar';
 import InventoryDonut from './visualizations/InventoryDonut';
@@ -36,27 +38,37 @@ export default function ReportView({ report }: ReportViewProps) {
         </section>
 
         {/* Middle Section: Visualization Grid */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 my-6">
-          <StrategicRadar data={vizData.radar_data || []} />
-          <InventoryDonut data={vizData.inventory_mix || []} />
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 my-6 min-h-[400px]">
+          <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm h-[400px]">
+             <StrategicRadar data={vizData.radar_data || []} />
+          </div>
+          <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm h-[400px]">
+             <InventoryDonut data={vizData.inventory_mix || []} />
+          </div>
         </section>
 
         {/* Bottom Section: Logic Flow and Full Report */}
         <section className="my-6">
           <div className="bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-xl p-6 shadow-lg mb-6">
-            <LogicFlow code={report?.mermaid_code} />
+            <h3 className="text-lg font-semibold text-gray-200 mb-4">Analysis Logic Flow</h3>
+            <div className="h-[400px] w-full">
+              <LogicFlow code={report?.mermaid_code} />
+            </div>
           </div>
 
           {/* Full Strategy Briefing */}
-          <details className="mt-6 bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-xl overflow-hidden">
-            <summary className="p-4 font-medium text-white cursor-pointer flex items-center gap-2 hover:bg-gray-800/50 transition-colors">
+          <details className="mt-6 bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-xl overflow-hidden group">
+            <summary className="p-4 font-medium text-white cursor-pointer flex items-center gap-2 hover:bg-gray-800/50 transition-colors select-none">
+              <span className="text-lg group-open:rotate-90 transition-transform duration-200">▶</span>
               <span className="text-lg">📜</span>
               View Full Strategy Briefing
             </summary>
             <div className="p-6 border-t border-gray-800">
-              <div className="prose prose-invert max-w-none">
+              <div className="prose prose-invert max-w-none prose-headings:text-cyan-400 prose-a:text-purple-400">
                 {report?.full_markdown_report ? (
-                  <div dangerouslySetInnerHTML={{ __html: report.full_markdown_report }} />
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {report.full_markdown_report}
+                  </ReactMarkdown>
                 ) : (
                   <p className="text-gray-400">No detailed report available</p>
                 )}
