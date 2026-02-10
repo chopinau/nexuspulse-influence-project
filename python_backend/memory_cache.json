@@ -630,5 +630,91 @@
         }
       ]
     }
+  },
+  "Outdoor": {
+    "timestamp": 1770630277.9579177,
+    "mode": "TIKTOK_RISK",
+    "data": {
+      "status": "success",
+      "report_title": "Outdoor Market Sentiment & Strategic Analysis",
+      "verdict_text": "> **决策建议：执行高警戒增长策略，优先处理死库存与合规风险。针对多头提到的“户外体验需求激增”和“高端市场韧性”机会，空头提出的“库存陷阱”和“合规风险”更具威胁。关键风险：库存积压风险（9/10分，基于2500天库龄SKU），营销合规风险（8/10分，基于“抗菌”等敏感词）。反共识洞察：市场信号矛盾（REI扩张 vs. 分析师降级）并非行业周期见顶，而是市场从“泛户外产品”向“解决方案与体验”分化的标志。大众可能忽视，社交媒体驱动的需求（如TikTok负向钩子）正在创造一批对产品功能（如解决背痛）有明确诉求、但品牌忠诚度未定的新消费者，这为能精准解决痛点、同时严格控制库存和合规的品牌提供了结构性机会。**",
+      "full_markdown_report": "> **决策建议：执行高警戒增长策略，优先处理死库存与合规风险。针对多头提到的“户外体验需求激增”和“高端市场韧性”机会，空头提出的“库存陷阱”和“合规风险”更具威胁。关键风险：库存积压风险（9/10分，基于2500天库龄SKU），营销合规风险（8/10分，基于“抗菌”等敏感词）。反共识洞察：市场信号矛盾（REI扩张 vs. 分析师降级）并非行业周期见顶，而是市场从“泛户外产品”向“解决方案与体验”分化的标志。大众可能忽视，社交媒体驱动的需求（如TikTok负向钩子）正在创造一批对产品功能（如解决背痛）有明确诉求、但品牌忠诚度未定的新消费者，这为能精准解决痛点、同时严格控制库存和合规的品牌提供了结构性机会。**\n\n### ⚖️ 多空博弈\n\n**🐂 多头核心观点：**\n*   **机会**：户外体验需求结构性增长（REI扩张）、高端/可持续品牌具有定价韧性（Patagonia）、社交媒体放大效应、后疫情生活方式转变。\n*   **策略**：利用TikTok“负向钩子”等高留存率内容进行病毒式营销，打造品牌社区，通过DTC渠道控制叙事和利润。\n*   **弱点**：过于乐观估计需求的持久性，低估了库存管理和供应链风险。\n\n**🐻 空头核心观点：**\n*   **风险**：行业存在严重的“库存陷阱”（以“Old-Socks”SKU为证），需求可能周期性冷却（分析师降级），导致利润率压缩和资产减值。营销合规风险（如“抗菌”、“治愈”声称）可能导致监管打击和声誉崩溃。\n*   **策略**：警告当前是周期顶点，扩张和备货过于激进将导致未来季度的库存危机。\n*   **弱点**：可能低估了高端品牌基于价值观和产品力建立的客户忠诚度所带来的缓冲，以及DTC模式对库存周转的改善潜力。\n\n**博弈分析**：\n空头的论点基于坚实的运营和财务风险（库存天数、合规），这些是立即且可量化的威胁。多头的论点基于市场趋势和增长潜力，但更具假设性。**针对多头提到的“社交媒体放大效应”和“DTC渠道”机会，空头提出的“库存陷阱”风险更具威胁**，因为再好的营销也无法拯救因错误预测需求而产生的巨额死库存成本。然而，多头指出的“高端市场韧性”和“解决方案式创新”是抵御周期性波动的有效策略。当前博弈的关键在于，品牌能否在执行增长策略（如利用TikTok蓝图）的同时，以军事化的纪律管理库存和供应链。\n\n### 📊 数据支持\n\n| 数据点 | 来源 | 数值/描述 | 含义 |\n| :--- | :--- | :--- | :--- |\n| **库龄 (DOS)** | CFO库存审计 | 2500天 | **🔴 极度危险**。库存严重老化，产生仓储附加费，占用大量现金。 |\n| **售罄率 (STR)** | CFO库存审计 | 0.04 | **🔴 极度危险**。目标值应>2.0，表明产品完全滞销。 |\n| **市场情绪 (新闻)** | Bloomberg/Reuters | 矛盾 (扩张 vs. 降级) | 市场处于分化期，增长与风险并存。 |\n| **病毒内容策略** | TikTok蓝图 | 负向钩子 (Negative Hook) | 已验证的高留存率(+45%)内容公式，可用于高效获客。 |\n| **合规检查结果** | 合规官 | 通过 (未发现明显违禁词) | **⚠️ 注意**：需警惕“抗菌”、“治愈”等未明确出现但高风险的医疗宣称。 |\n\n### 💡 行动建议\n\n1.  **[P0 紧急] 立即清算死库存**：遵循CFO指令，立即对“Old-Socks”类SKU（DOS>365天，STR<0.5）启动清算程序（促销、捆绑、捐赠），停止相关采购，释放现金流和仓储空间。\n2.  **[P0 紧急] 全面营销合规审查**：立即审查所有产品描述、广告文案、社媒内容，严格删除或修改任何涉及医疗效果（如“治愈背痛”、“抗菌”）、绝对化用语或未经证实的可持续声明的词汇。建立上线前合规审核流程。\n3.  **[P1 重要] 采用需求驱动型库存模式**：将“负向钩子”TikTok活动与小型、快速翻单的库存计划绑定。采用预售或小批量测款方式验证市场需求，再扩大生产，避免预测失误。\n4.  **[P1 重要] 执行精准TikTok策略**：立即制作基于“负向钩子”脚本的内容。例如：“Stop ruining your camping trip with an uncomfortable backpack!” 聚焦于解决一个具体痛点，并清晰展示产品解决方案，引导至独立站。\n5.  **[P2 常规] 强化高端价值叙事**：学习Patagonia，将品牌故事聚焦于产品耐用性、可修复性及环保实践，而不仅仅是功能。这有助于建立溢价能力和客户忠诚度，抵御价格战。\n\n### 🎯 COMPLIANCE_LAWYER SPECIAL OUTPUT\n**Ban Probability Score: 7/10** (高风险)\n*   **依据**：行业涉及功能性产品，极易触发医疗宣称（如缓解疼痛、抗菌）。当前数据虽未发现明显违禁词，但“治愈背痛”等诉求是天然雷区。\n*   **升级因素**：若采用“负向钩子”（“Stop using Outdoor the wrong way!”）对比竞品，可能引发知识产权纠纷或贬低竞争对手的指控。\n\n**Sensitive Word List (必须规避):**\n*   **医疗/健康宣称**：治愈(cure)、治疗(treat)、预防(prevent)、抗菌(anti-bacterial)、消炎(anti-inflammatory)、缓解(relieve)疼痛(pain)、医用(medical)、疗效(efficacy)。\n*   **绝对化用语**：最(best)、第一(#1)、顶级(top-tier)、100%有效(100% effective)、永不(never)。\n*   **未经证实的环保宣称**：100%环保(100% eco-friendly)、零碳(zero carbon)、完全可生物降解(fully biodegradable)（需有认证）。\n*   **知识产权风险词**：与知名品牌名称、专利技术名称相同或近似。\n\n### 🛠️ EXPERT TOOL ANALYSIS\n*   **📉 无情CFO库存审计**：发现“**毒性资产**”——“Old-Socks”SKU库龄2500天，售罄率仅0.04。这是最关键的警报，表明公司库存管理存在严重问题，可能吞噬所有利润。任何增长策略都必须建立在解决此问题的基础上。\n*   **✅ 合规官检查**：当前通过，但这是**被动检查结果**。合规官的角色是主动预警。输入数据中提到的“背痛”和行业特性，意味着营销中极易踩雷，必须主动审查。\n*   **📱 TikTok病毒蓝图**：提供的“负向钩子”脚本是强大的增长工具（+45%留存率）。**关键影响**：它提供了一种低成本、高效率的获客方式，但必须确保脚本内容（如“错误方式”）不构成对竞品的诋毁，且提出的“解决方案”不过度承诺。\n*   **综合影响**：CFO的数据揭示了致命的运营弱点，而Marketer和Compliance的工具指出了实现增长的具体路径和潜在陷阱。最终裁决必须优先修补运营弱点（清库存、强合规），再安全地利用增长工具。\n\n### 🔄 逻辑流程图\n\n```mermaid\ngraph TD\n    Start[分析户外行业议题] --> Data[收集多空数据与工具执行结果]\n    Data --> Bull[多头分析: 需求增长/社交营销/高端韧性]\n    Data --> Bear[空头分析: 库存陷阱/合规风险/周期见顶]\n    \n    Bull --> Evaluate[决策评估]\n    Bear --> Evaluate\n    \n    Evaluate --> RiskCheck{关键风险是否可控? <br/> 1. 库存积压(CFO) <br/> 2. 合规暴雷(律师)}\n    \n    RiskCheck -- 否 --> ActionA[P0: 优先清库存与合规审查]\n    ActionA --> Strategy[执行高警戒增长策略]\n    \n    RiskCheck -- 是 --> ActionB[直接执行增长策略]\n    \n    Strategy --> Tactic1[利用TikTok负向钩子获客]\n    Strategy --> Tactic2[采用需求驱动库存模式]\n    Strategy --> Tactic3[强化高端价值叙事]\n    \n    Tactic1 --> Conclusion[最终结论: 在严格风险控制下捕捉分化市场机会]\n    Tactic2 --> Conclusion\n    Tactic3 --> Conclusion\n    ActionB --> Conclusion\n```\n\n",
+      "mermaid_code": "graph TD\n    Start[分析户外行业议题] --> Data[收集多空数据与工具执行结果]\n    Data --> Bull[多头分析: 需求增长/社交营销/高端韧性]\n    Data --> Bear[空头分析: 库存陷阱/合规风险/周期见顶]\n    \n    Bull --> Evaluate[决策评估]\n    Bear --> Evaluate\n    \n    Evaluate --> RiskCheck{关键风险是否可控? <br/> 1. 库存积压(CFO) <br/> 2. 合规暴雷(律师)}\n    \n    RiskCheck -- 否 --> ActionA[P0: 优先清库存与合规审查]\n    ActionA --> Strategy[执行高警戒增长策略]\n    \n    RiskCheck -- 是 --> ActionB[直接执行增长策略]\n    \n    Strategy --> Tactic1[利用TikTok负向钩子获客]\n    Strategy --> Tactic2[采用需求驱动库存模式]\n    Strategy --> Tactic3[强化高端价值叙事]\n    \n    Tactic1 --> Conclusion[最终结论: 在严格风险控制下捕捉分化市场机会]\n    Tactic2 --> Conclusion\n    Tactic3 --> Conclusion\n    ActionB --> Conclusion",
+      "debate_details": "## ⚖️ 多空博弈\n\n**🐂 多头核心观点：**\n*   **机会**：户外体验需求结构性增长（REI扩张）、高端/可持续品牌具有定价韧性（Patagonia）、社交媒体放大效应、后疫情生活方式转变。\n*   **策略**：利用TikTok“负向钩子”等高留存率内容进行病毒式营销，打造品牌社区，通过DTC渠道控制叙事和利润。\n*   **弱点**：过于乐观估计需求的持久性，低估了库存管理和供应链风险。\n\n**🐻 空头核心观点：**\n*   **风险**：行业存在严重的“库存陷阱”（以“Old-Socks”SKU为证），需求可能周期性冷却（分析师降级），导致利润率压缩和资产减值。营销合规风险（如“抗菌”、“治愈”声称）可能导致监管打击和声誉崩溃。\n*   **策略**：警告当前是周期顶点，扩张和备货过于激进将导致未来季度的库存危机。\n*   **弱点**：可能低估了高端品牌基于价值观和产品力建立的客户忠诚度所带来的缓冲，以及DTC模式对库存周转的改善潜力。\n\n**博弈分析**：\n空头的论点基于坚实的运营和财务风险（库存天数、合规），这些是立即且可量化的威胁。多头的论点基于市场趋势和增长潜力，但更具假设性。**针对多头提到的“社交媒体放大效应”和“DTC渠道”机会，空头提出的“库存陷阱”风险更具威胁**，因为再好的营销也无法拯救因错误预测需求而产生的巨额死库存成本。然而，多头指出的“高端市场韧性”和“解决方案式创新”是抵御周期性波动的有效策略。当前博弈的关键在于，品牌能否在执行增长策略（如利用TikTok蓝图）的同时，以军事化的纪律管理库存和供应链。\n\n### 📊 数据支持\n\n| 数据点 | 来源 | 数值/描述 | 含义 |\n| :--- | :--- | :--- | :--- |\n| **库龄 (DOS)** | CFO库存审计 | 2500天 | **🔴 极度危险**。库存严重老化，产生仓储附加费，占用大量现金。 |\n| **售罄率 (STR)** | CFO库存审计 | 0.04 | **🔴 极度危险**。目标值应>2.0，表明产品完全滞销。 |\n| **市场情绪 (新闻)** | Bloomberg/Reuters | 矛盾 (扩张 vs. 降级) | 市场处于分化期，增长与风险并存。 |\n| **病毒内容策略** | TikTok蓝图 | 负向钩子 (Negative Hook) | 已验证的高留存率(+45%)内容公式，可用于高效获客。 |\n| **合规检查结果** | 合规官 | 通过 (未发现明显违禁词) | **⚠️ 注意**：需警惕“抗菌”、“治愈”等未明确出现但高风险的医疗宣称。 |\n\n### 💡 行动建议\n\n1.  **[P0 紧急] 立即清算死库存**：遵循CFO指令，立即对“Old-Socks”类SKU（DOS>365天，STR<0.5）启动清算程序（促销、捆绑、捐赠），停止相关采购，释放现金流和仓储空间。\n2.  **[P0 紧急] 全面营销合规审查**：立即审查所有产品描述、广告文案、社媒内容，严格删除或修改任何涉及医疗效果（如“治愈背痛”、“抗菌”）、绝对化用语或未经证实的可持续声明的词汇。建立上线前合规审核流程。\n3.  **[P1 重要] 采用需求驱动型库存模式**：将“负向钩子”TikTok活动与小型、快速翻单的库存计划绑定。采用预售或小批量测款方式验证市场需求，再扩大生产，避免预测失误。\n4.  **[P1 重要] 执行精准TikTok策略**：立即制作基于“负向钩子”脚本的内容。例如：“Stop ruining your camping trip with an uncomfortable backpack!” 聚焦于解决一个具体痛点，并清晰展示产品解决方案，引导至独立站。\n5.  **[P2 常规] 强化高端价值叙事**：学习Patagonia，将品牌故事聚焦于产品耐用性、可修复性及环保实践，而不仅仅是功能。这有助于建立溢价能力和客户忠诚度，抵御价格战。\n\n### 🎯 COMPLIANCE_LAWYER SPECIAL OUTPUT\n**Ban Probability Score: 7/10** (高风险)\n*   **依据**：行业涉及功能性产品，极易触发医疗宣称（如缓解疼痛、抗菌）。当前数据虽未发现明显违禁词，但“治愈背痛”等诉求是天然雷区。\n*   **升级因素**：若采用“负向钩子”（“Stop using Outdoor the wrong way!”）对比竞品，可能引发知识产权纠纷或贬低竞争对手的指控。\n\n**Sensitive Word List (必须规避):**\n*   **医疗/健康宣称**：治愈(cure)、治疗(treat)、预防(prevent)、抗菌(anti-bacterial)、消炎(anti-inflammatory)、缓解(relieve)疼痛(pain)、医用(medical)、疗效(efficacy)。\n*   **绝对化用语**：最(best)、第一(#1)、顶级(top-tier)、100%有效(100% effective)、永不(never)。\n*   **未经证实的环保宣称**：100%环保(100% eco-friendly)、零碳(zero carbon)、完全可生物降解(fully biodegradable)（需有认证）。\n*   **知识产权风险词**：与知名品牌名称、专利技术名称相同或近似。\n\n### 🛠️ EXPERT TOOL ANALYSIS\n*   **📉 无情CFO库存审计**：发现“**毒性资产**”——“Old-Socks”SKU库龄2500天，售罄率仅0.04。这是最关键的警报，表明公司库存管理存在严重问题，可能吞噬所有利润。任何增长策略都必须建立在解决此问题的基础上。\n*   **✅ 合规官检查**：当前通过，但这是**被动检查结果**。合规官的角色是主动预警。输入数据中提到的“背痛”和行业特性，意味着营销中极易踩雷，必须主动审查。\n*   **📱 TikTok病毒蓝图**：提供的“负向钩子”脚本是强大的增长工具（+45%留存率）。**关键影响**：它提供了一种低成本、高效率的获客方式，但必须确保脚本内容（如“错误方式”）不构成对竞品的诋毁，且提出的“解决方案”不过度承诺。\n*   **综合影响**：CFO的数据揭示了致命的运营弱点，而Marketer和Compliance的工具指出了实现增长的具体路径和潜在陷阱。最终裁决必须优先修补运营弱点（清库存、强合规），再安全地利用增长工具。\n\n### 🔄 逻辑流程图\n\n```mermaid\ngraph TD\n    Start[分析户外行业议题] --> Data[收集多空数据与工具执行结果]\n    Data --> Bull[多头分析: 需求增长/社交营销/高端韧性]\n    Data --> Bear[空头分析: 库存陷阱/合规风险/周期见顶]\n    \n    Bull --> Evaluate[决策评估]\n    Bear --> Evaluate\n    \n    Evaluate --> RiskCheck{关键风险是否可控? <br/> 1. 库存积压(CFO) <br/> 2. 合规暴雷(律师)}\n    \n    RiskCheck -- 否 --> ActionA[P0: 优先清库存与合规审查]\n    ActionA --> Strategy[执行高警戒增长策略]\n    \n    RiskCheck -- 是 --> ActionB[直接执行增长策略]\n    \n    Strategy --> Tactic1[利用TikTok负向钩子获客]\n    Strategy --> Tactic2[采用需求驱动库存模式]\n    Strategy --> Tactic3[强化高端价值叙事]\n    \n    Tactic1 --> Conclusion[最终结论: 在严格风险控制下捕捉分化市场机会]\n    Tactic2 --> Conclusion\n    Tactic3 --> Conclusion\n    ActionB --> Conclusion\n```",
+      "structured_data": {
+        "sentiment_score": 45,
+        "heat_index": 65,
+        "impact_score": 70,
+        "risk_score": 7,
+        "sop_based": true,
+        "sop_name": "tiktok_risk"
+      },
+      "visualization_data": {
+        "inventory_mix": [
+          {
+            "name": "Toxic (Dead Stock)",
+            "value": 5000,
+            "fill": "#ef4444"
+          },
+          {
+            "name": "Slow Moving",
+            "value": 0,
+            "fill": "#f59e0b"
+          },
+          {
+            "name": "Healthy",
+            "value": 0,
+            "fill": "#22c55e"
+          }
+        ],
+        "radar_data": [
+          {
+            "subject": "Supply Chain",
+            "A": 30,
+            "fullMark": 100
+          },
+          {
+            "subject": "Brand Power",
+            "A": 45,
+            "fullMark": 100
+          },
+          {
+            "subject": "Compliance",
+            "A": 20,
+            "fullMark": 100
+          },
+          {
+            "subject": "Cash Flow",
+            "A": 70,
+            "fullMark": 100
+          },
+          {
+            "subject": "Innovation",
+            "A": 65,
+            "fullMark": 100
+          }
+        ]
+      },
+      "market_news": [
+        {
+          "title": "Outdoor Retailer REI Announces Major Expansion Amid Surging Demand for Adventure Gear",
+          "source": "Bloomberg",
+          "sentiment": "Bullish",
+          "url": "#"
+        },
+        {
+          "title": "Analysts Downgrade Outdoor Industry Stocks as Consumer Spending on Recreation Shows Signs of Cooling",
+          "source": "Reuters",
+          "sentiment": "Bearish",
+          "url": "#"
+        },
+        {
+          "title": "Patagonia Reports Steady Q3 Revenue, Highlighting Resilience in Premium Outdoor Apparel Segment",
+          "source": "Financial Times",
+          "sentiment": "Neutral",
+          "url": "#"
+        }
+      ]
+    }
   }
 }
