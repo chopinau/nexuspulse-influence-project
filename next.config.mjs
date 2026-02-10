@@ -4,7 +4,8 @@ const withNextIntl = createNextIntlPlugin();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Other config options here
+    // Enable tree shaking for better optimization
+    productionBrowserSourceMaps: false
 };
 
 export default withNextIntl(nextConfig);
