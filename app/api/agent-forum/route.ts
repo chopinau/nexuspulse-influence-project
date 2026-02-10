@@ -15,6 +15,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
     }
 
+    // VERCEL PRODUCTION MODE: Use Internal HTTP Call to Python Serverless Function
+    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+      const protocol = request.headers.get('x-forwarded-proto') || 'https';
+      const host = request.headers.get('host');
+      const apiUrl = `${protocol}://${host}/api/py/index`; // Mapped in vercel.json
+
+      console.log(`🚀 Production Mode: Calling Python Serverless at ${apiUrl}`);
+
+      const pyResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!pyResponse.ok) {
+        throw new Error(`Python API Error: ${pyResponse.statusText}`);
+      }
+
+      const data = await pyResponse.json();
+      return NextResponse.json(data);
+    }
+
+    // LOCAL DEVELOPMENT MODE: Spawn Process
     // Resolve path to the python script
     // Assuming the script is at python_backend/report_engine_only.py relative to project root
     const scriptPath = path.resolve(process.cwd(), 'python_backend', 'report_engine_only.py');

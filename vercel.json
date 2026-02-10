@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/py/:path*", "destination": "/api/py/:path*" },
+    { "source": "/api/agent-forum", "destination": "/api/agent-forum" }
+  ]
+}

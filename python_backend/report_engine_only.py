@@ -789,15 +789,18 @@ def main():
     
     args = parser.parse_args()
 
-    # Default Topics
-    TOPICS = [
-        "Tesla Supply Chain Rumors",
-        "NVIDIA AI Chip Demand",
-        "Bitcoin Regulation Leaks",
-        "Apple VR Headset Sales"
-    ]
+    # Default Topics - REMOVED TO PREVENT GHOST REPORTS
+    # If no topic is provided, we must NOT run a default one silently.
     
-    topic = args.query_flag or args.query or TOPICS[0]
+    topic = args.query_flag or args.query
+    if not topic:
+        logger.warning("⚠️ No topic provided. Exiting gracefully.")
+        # Return a simple JSON indicating no action, to prevent parsing errors if caller expects JSON
+        print("---JSON_START---")
+        print(json.dumps({"status": "skipped", "message": "No topic provided"}, ensure_ascii=False))
+        print("---JSON_END---")
+        sys.exit(0)
+
     mode = args.mode_flag or args.mode or "GENERAL"
     
     logger.info(f"🚀 Starting Intelligence Mission: {topic} (Mode: {mode})")
