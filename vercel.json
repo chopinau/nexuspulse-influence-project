@@ -1,25 +1,11 @@
 {
   "rewrites": [
-    { "source": "/api/py/index", "destination": "/api/index.py" },
     { "source": "/api/agent-forum", "destination": "/api/agent-forum" }
   ],
   "functions": {
-    "api/index.py": {
-      "includeFiles": "python_backend/**",
-      "excludeFiles": [
-        "python_backend/data/**",
-        "node_modules/**",
-        ".next/**",
-        "data/**",
-        "tests/**",
-        "**/*.md",
-        "**/*.log",
-        "**/*.txt",
-        "**/*.tsbuildinfo"
-      ]
-    },
     "app/api/**/*.ts": {
       "excludeFiles": [
+        "python_backend/**",
         "node_modules/@google/genai/**",
         "node_modules/@tremor/react/**",
         "node_modules/chart.js/**",
@@ -30,7 +16,22 @@
         "node_modules/embla-carousel-react/**",
         "node_modules/input-otp/**",
         "node_modules/cmdk/**",
-        "node_modules/@radix-ui/**"
+        "node_modules/@radix-ui/**",
+        "node_modules/framer-motion/**",
+        "node_modules/@prisma/client/**",
+        "node_modules/prisma/**",
+        "node_modules/@next-auth/**",
+        "node_modules/swr/**",
+        "node_modules/date-fns/**",
+        "node_modules/uuid/**",
+        "node_modules/vaul/**",
+        "node_modules/zod/**",
+        "data/**",
+        "tests/**",
+        "**/*.md",
+        "**/*.log",
+        "**/*.txt",
+        "**/*.tsbuildinfo"
       ]
     }
   }
