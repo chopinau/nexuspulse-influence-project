@@ -5,8 +5,6 @@ pydantic-settings
 openai
 tenacity
 jinja2
-weasyprint
 supabase
-matplotlib
 tavily-python
 requests

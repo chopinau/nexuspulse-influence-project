@@ -21,9 +21,6 @@ export async function POST(request: NextRequest) {
       const host = request.headers.get('host');
       const apiUrl = `${protocol}://${host}/api/py/index`; // Mapped in vercel.json
 
-      console.log(`🚀 Production Mode: Calling Python Serverless at ${apiUrl}`);
-      console.log(`🚀 Request body: ${JSON.stringify(body)}`);
-
       try {
         const pyResponse = await fetch(apiUrl, {
           method: 'POST',
@@ -31,24 +28,14 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify(body)
         });
 
-        console.log(`🚀 Python API Response status: ${pyResponse.status}`);
-        
-        const responseText = await pyResponse.text();
-        console.log(`🚀 Python API Response text: ${responseText}`);
-
         if (!pyResponse.ok) {
-          throw new Error(`Python API Error: ${pyResponse.statusText}. Response: ${responseText}`);
+          throw new Error(`Python API Error: ${pyResponse.statusText}`);
         }
 
-        try {
-          const data = JSON.parse(responseText);
-          console.log(`🚀 Python API Response data: ${JSON.stringify(data)}`);
-          return NextResponse.json(data);
-        } catch (jsonError) {
-          throw new Error(`Failed to parse Python API response: ${jsonError.message}. Response: ${responseText}`);
-        }
+        const data = await pyResponse.json();
+        return NextResponse.json(data);
       } catch (error) {
-        console.error(`🚀 Production Mode Error: ${error}`);
+        console.error(`Production Mode Error: ${error}`);
         return NextResponse.json(
           {
             status: 'error',
