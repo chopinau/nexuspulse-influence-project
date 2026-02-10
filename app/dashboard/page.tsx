@@ -265,6 +265,7 @@ export default function DashboardPage() {
              onModeChange={setMode}
              strategyMode={strategyMode}
              onStrategyModeChange={setStrategyMode}
+             category={searchQuery}
              onExecute={handleGenerate}
              isLoading={loading}
              loadingText={loadingText}

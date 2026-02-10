@@ -9,7 +9,7 @@ const PYTHON_TIMEOUT = 300000; // 5 minutes timeout
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { topic, mode = "GENERAL", strategy_mode = "incubation", inventory, daily_sales, listing_text, pain_point } = body;
+    const { topic, mode = "GENERAL", strategy_mode = "incubation", category, inventory, daily_sales, listing_text, pain_point } = body;
 
     if (!topic) {
       return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
     const args = [scriptPath, '--query', topic, '--mode', mode, '--strategy_mode', strategy_mode];
     
     // Append optional fields if they exist
+    if (category) args.push('--category', category);
     if (inventory !== undefined) args.push('--inventory', inventory.toString());
     if (daily_sales !== undefined) args.push('--sales', daily_sales.toString());
     if (listing_text) args.push('--listing', listing_text);

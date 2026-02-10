@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import KeyInsightCards from './visualizations/KeyInsightCards';
@@ -55,6 +55,9 @@ export default function ReportView({ report }: ReportViewProps) {
   // Data extraction with safety checks
   const vizData = report?.visualization_data || {};
   const structData = report?.structured_data || {};
+  
+  // State management for tabbed interface
+  const [activeView, setActiveView] = useState<'dashboard' | 'logs'>('dashboard');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 to-black text-white p-4 sm:p-6 lg:p-8">
@@ -72,64 +75,89 @@ export default function ReportView({ report }: ReportViewProps) {
         {/* Strategy Context Card */}
         <StrategyContextCard report={report} />
 
-        {/* Top Section: Key Insight Cards */}
-        <section className="mb-6">
-          <KeyInsightCards
-            riskScore={structData.risk_score || 0}
-            heatIndex={structData.heat_index || 0}
-            impactScore={structData.impact_score || 0}
-          />
-        </section>
+        {/* Tab Switcher */}
+        <div className="flex border-b border-gray-800 mb-6">
+          <button
+            onClick={() => setActiveView('dashboard')}
+            className={`px-4 py-2 font-medium transition-colors ${activeView === 'dashboard' ? 'border-b-2 border-cyan-500 text-cyan-400' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            📊 Strategic Dashboard
+          </button>
+          <button
+            onClick={() => setActiveView('logs')}
+            className={`px-4 py-2 font-medium transition-colors ${activeView === 'logs' ? 'border-b-2 border-cyan-500 text-cyan-400' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            📜 Agent Debate Logs
+          </button>
+        </div>
 
-        {/* Middle Section: Visualization Grid */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 my-6 min-h-[400px]">
-          <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm h-[400px]">
-             <StrategicRadar data={vizData.radar_data || []} />
-          </div>
-          <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm h-[400px]">
-             <InventoryDonut data={vizData.inventory_mix || []} />
-          </div>
-        </section>
+        {/* View Rendering */}
+        {activeView === 'dashboard' ? (
+          /* Tab 1: Strategic Dashboard */
+          <div className="space-y-6">
+            {/* Top Section: Key Insight Cards */}
+            <section>
+              <KeyInsightCards
+                riskScore={structData.risk_score || 0}
+                heatIndex={structData.heat_index || 0}
+                impactScore={structData.impact_score || 0}
+              />
+            </section>
 
-        {/* Bottom Section: Logic Flow and Full Report */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-6">
-          <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm min-h-[400px]">
-            <h3 className="text-lg font-semibold text-cyan-400 mb-4">Logic Flow</h3>
-            {report?.mermaid_code ? (
-              <LogicFlow code={report.mermaid_code} />
-            ) : (
-              <div className="flex items-center justify-center h-64 text-gray-500">
-                <p>Logic flow diagram will appear here...</p>
+            {/* Middle Section: Visualization Grid */}
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[400px]">
+              <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm h-[400px]">
+                <StrategicRadar data={vizData.radar_data || []} />
               </div>
+              <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm h-[400px]">
+                <InventoryDonut data={vizData.inventory_mix || []} />
+              </div>
+            </section>
+          </div>
+        ) : (
+          /* Tab 2: Agent Debate Logs */
+          <div className="space-y-6">
+            {/* Bottom Section: Logic Flow and Full Report */}
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm min-h-[400px]">
+                <h3 className="text-lg font-semibold text-cyan-400 mb-4">Logic Flow</h3>
+                {report?.mermaid_code ? (
+                  <LogicFlow code={report.mermaid_code} />
+                ) : (
+                  <div className="flex items-center justify-center h-64 text-gray-500">
+                    <p>Logic flow diagram will appear here...</p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm min-h-[400px]">
+                <h3 className="text-lg font-semibold text-cyan-400 mb-4">Strategic Verdict</h3>
+                {report?.verdict_text ? (
+                  <div className="prose prose-invert prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {report.verdict_text}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-64 text-gray-500">
+                    <p>Strategic verdict will appear here...</p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Full Report Section */}
+            {report?.full_markdown_report && (
+              <section className="bg-gray-900/50 rounded-xl p-6 border border-white/5 backdrop-blur-sm">
+                <h3 className="text-lg font-semibold text-cyan-400 mb-4">Full Intelligence Report</h3>
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {report.full_markdown_report}
+                  </ReactMarkdown>
+                </div>
+              </section>
             )}
           </div>
-          
-          <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm min-h-[400px]">
-            <h3 className="text-lg font-semibold text-cyan-400 mb-4">Strategic Verdict</h3>
-            {report?.verdict_text ? (
-              <div className="prose prose-invert prose-sm max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {report.verdict_text}
-                </ReactMarkdown>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-64 text-gray-500">
-                <p>Strategic verdict will appear here...</p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Full Report Section */}
-        {report?.full_markdown_report && (
-          <section className="bg-gray-900/50 rounded-xl p-6 border border-white/5 backdrop-blur-sm">
-            <h3 className="text-lg font-semibold text-cyan-400 mb-4">Full Intelligence Report</h3>
-            <div className="prose prose-invert prose-sm max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {report.full_markdown_report}
-              </ReactMarkdown>
-            </div>
-          </section>
         )}
       </div>
     </div>

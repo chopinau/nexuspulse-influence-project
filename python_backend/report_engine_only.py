@@ -149,12 +149,12 @@ def determine_user_intent(query: str) -> str:
     logger.info(f"🎯 User intent classified as: {intent}")
     return intent
 
-def collect_intelligence(query: str, mode: str = "GENERAL") -> str:
+def collect_intelligence(query: str, mode: str = "GENERAL", category: Optional[str] = None) -> str:
     """
     Collect intelligence using Tavily API with Multi-Persona Expansion.
     Step 1: Intelligent Search Expansion (The Setup)
     """
-    logger.info(f"🔍 Starting Intelligent Search Expansion for: {query} (Mode: {mode})")
+    logger.info(f"🔍 Starting Intelligent Search Expansion for: {query} (Mode: {mode}, Category: {category})")
     
     try:
         # 1. Initialize Tavily
@@ -166,11 +166,15 @@ def collect_intelligence(query: str, mode: str = "GENERAL") -> str:
         # 2. Define Sub-Queries (Adaptive based on Mode)
         search_suffix = SEARCH_PROMPTS.get(mode, SEARCH_PROMPTS["GENERAL"])
         
+        # --- COMPOSITE QUERY CONSTRUCTION (Hard-Lock) ---
+        base_query = f"{category} {query}" if category else query
+        logger.info(f"🔒 Hard-Lock Active: Composite Query = '{base_query}'")
+
         sub_queries = [
-            f"{query} {search_suffix}",
-            f"{query} market trends growth opportunities viral signals",   # For Bull
-            f"{query} supply chain costs inventory risk price competition", # For Bear
-            f"{query} consumer complaints product quality negative reviews" # For Auditor/Risk
+            f"{base_query} {search_suffix}",
+            f"{base_query} market trends growth opportunities viral signals",   # For Bull
+            f"{base_query} supply chain costs inventory risk price competition", # For Bear
+            f"{base_query} consumer complaints product quality negative reviews" # For Auditor/Risk
         ]
         
         combined_context = ""
@@ -222,11 +226,102 @@ def extract_risk_score(text: str) -> int:
         return 5
     return max(0, min(10, v))
 
+
+def analyze_user_intent(category: str, user_input: str) -> Dict:
+    """
+    Analyze user intent relative to the category using LLM
+    Returns a dict with intent_type, refined_search_query, and product_name_for_sku
+    """
+    if not DEEPSEEK_API_KEY:
+        # Fallback logic if no API key
+        return {
+            'intent_type': 'Product',
+            'refined_search_query': f"{category} {user_input}",
+            'product_name_for_sku': f"{category.replace(' ', '-')}-Gen1"
+        }
+    
+    logger.info(f"🧠 Analyzing user intent: Category='{category}', Input='{user_input}'")
+    
+    system_prompt = "你是一个意图分类器。请分析用户输入相对于类别的意图。"
+    user_prompt = f"""Context: User is analyzing category '{category}'. Input: '{user_input}'.
+Determine the intent:
+1. Is it a **Sub-Product**? (e.g., 'Leggings', 'Mat')
+2. Is it a **Target Audience**? (e.g., 'Student', 'Moms')
+3. Is it a **Brand/Competitor**? (e.g., 'Lululemon')
+4. Is it a **Feature/Material**? (e.g., 'Nylon', 'Breathable')
+
+Return JSON:
+{{
+  'intent_type': 'Audience' | 'Product' | 'Brand' | 'Feature',
+  'refined_search_query': '...optimized string for Tavily...',
+  'product_name_for_sku': '...name to be used for mock inventory...'
+}}
+"""
+    
+    # Call LLM
+    def call_llm(system_p, user_p):
+        api_url = "https://api.deepseek.com/v1/chat/completions"
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [
+                {"role": "system", "content": system_p},
+                {"role": "user", "content": user_p}
+            ],
+            "temperature": 0.1
+        }
+        headers = {
+            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        try:
+            response = requests.post(api_url, json=payload, headers=headers, timeout=30)
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+            return content
+        except Exception as e:
+            logger.error(f"❌ Intent classification failed: {e}")
+            return None
+    
+    # Get LLM response
+    llm_response = call_llm(system_prompt, user_prompt)
+    
+    if not llm_response:
+        # Fallback if LLM call fails
+        return {
+            'intent_type': 'Product',
+            'refined_search_query': f"{category} {user_input}",
+            'product_name_for_sku': f"{category.replace(' ', '-')}-Gen1"
+        }
+    
+    # Parse JSON response
+    try:
+        # Extract JSON from response
+        json_match = re.search(r'\{[\s\S]*\}', llm_response)
+        if json_match:
+            json_str = json_match.group(0)
+            result = json.loads(json_str)
+            
+            # Validate result
+            if all(key in result for key in ['intent_type', 'refined_search_query', 'product_name_for_sku']):
+                logger.info(f"✅ Intent analysis complete: {result['intent_type']}")
+                return result
+    except Exception as e:
+        logger.error(f"❌ Failed to parse intent JSON: {e}")
+    
+    # Fallback if parsing fails
+    return {
+        'intent_type': 'Product',
+        'refined_search_query': f"{category} {user_input}",
+        'product_name_for_sku': f"{category.replace(' ', '-')}-Gen1"
+    }
+
 def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL", strategy_mode: str = "incubation",
+                     category: Optional[str] = None,
                      inventory_data: Optional[List[Dict]] = None,
                      listing_text: Optional[str] = None,
                      product_name: Optional[str] = None,
-                     pain_point: Optional[str] = None) -> Dict:
+                     pain_point: Optional[str] = None,
+                     intent_type: Optional[str] = None) -> Dict:
     """
     Call DeepSeek/Gemini to generate the report with Agent Skills + BettaFish architecture.
     Returns parsed JSON object with 'content', 'sentiment_score', etc.
@@ -285,7 +380,10 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL", strategy_m
     assembled_prompt_data = assemble_system_prompt(
         role=mode, 
         strategy_mode=strategy_mode, 
-        pain_point=pain_point
+        pain_point=pain_point,
+        category=category,
+        intent_type=intent_type,
+        user_input=topic
     )
     
     persona_def = assembled_prompt_data['full_system_prompt']
@@ -316,8 +414,19 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL", strategy_m
     if inventory_data:
         target_inventory = inventory_data
     else:
-        # Default mock if nothing provided
-        target_inventory = [{'sku': 'Old-Socks', 'stock': 5000, 'daily_sales': 2}] 
+        # Dynamic mock based on product_name and strategy_mode
+        toxic_sku = f"Stagnant-{product_name.replace(' ', '-')}-Gen1" if product_name else f"Stagnant-{topic.replace(' ', '-')}-Gen1"
+        
+        # Adjust mock data based on strategy_mode
+        if strategy_mode == "growth":
+            # Growth mode: higher inventory levels and sales
+            target_inventory = [{'sku': toxic_sku, 'stock': 8000, 'daily_sales': 5}]
+        elif strategy_mode == "incubation":
+            # Incubation mode: moderate inventory levels and sales
+            target_inventory = [{'sku': toxic_sku, 'stock': 5000, 'daily_sales': 2}]
+        else:
+            # Default mode: conservative inventory levels
+            target_inventory = [{'sku': toxic_sku, 'stock': 3000, 'daily_sales': 1}] 
 
     # Listing Text
     if listing_text:
@@ -350,7 +459,7 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL", strategy_m
 {rag_context}
 
 INSTRUCTION:
-- The CFO MUST scream about the 'Old-Socks' inventory logic.
+- The CFO MUST scream about the '{toxic_sku}' inventory logic.
 - The Risk Officer MUST panic about the 'anti-bacterial' and 'cure' claims.
 - The Marketer MUST reference the 'Negative Hook' script.
 """
@@ -808,6 +917,7 @@ def main():
     parser.add_argument("--query", dest="query_flag", type=str, help="Target topic")
     parser.add_argument("--mode", dest="mode_flag", type=str, help="Expert Mode (e.g. TIKTOK_RISK)")
     parser.add_argument("--strategy_mode", dest="strategy_mode", type=str, default="incubation", help="Strategy Mode (incubation|growth)")
+    parser.add_argument("--category", dest="category", type=str, help="Hard-Lock Category Context")
     parser.add_argument("--auto", action="store_true", help="Run in automatic mode") # Added for compatibility
     
     # New Arguments for Dynamic Forms
@@ -831,12 +941,26 @@ def main():
         sys.exit(0)
 
     mode = args.mode_flag or args.mode or "GENERAL"
+    category = args.category
     
-    logger.info(f"🚀 Starting Intelligence Mission: {topic} (Mode: {mode})")
+    logger.info(f"🚀 Starting Intelligence Mission: {topic} (Mode: {mode}, Category: {category})")
+    
+    # --- STEP 0: INTENT ROUTING ---
+    # Analyze user intent relative to category
+    intent_data = None
+    if category:
+        logger.info("🧠 Running Intent Router...")
+        intent_data = analyze_user_intent(category, topic)
+        logger.info(f"✅ Intent Router Result: {intent_data}")
+    
+    # Determine search query and product name based on intent analysis
+    search_query = intent_data.get('refined_search_query', f"{category} {topic}") if intent_data else topic
+    product_name_for_sku = intent_data.get('product_name_for_sku', f"{category.replace(' ', '-')}-Gen1") if intent_data and category else topic
+    intent_type = intent_data.get('intent_type', 'Product') if intent_data else 'Product'
     
     # --- STEP A: CHECK MEMORY ENGINE ---
     # Replaces old Supabase check with local file-based memory engine
-    cached_data = check_memory_cache(topic)
+    cached_data = check_memory_cache(search_query)
     if cached_data:
         # Check if mode matches (optional, but good for strictness)
         # For now, just return if found to be fast
@@ -848,11 +972,11 @@ def main():
 
     # --- STEP B: GENERATE ---
     # 1. Collect Data
-    context = collect_intelligence(topic, mode=mode)
+    context = collect_intelligence(search_query, mode=mode, category=category)
     
     # 1.5 Fetch Real-Time Market News (Live Dynamics)
     logger.info("📰 Fetching Live Market News...")
-    news_data = fetch_market_news(topic)
+    news_data = fetch_market_news(search_query)
     
     # Append news to context for the LLM to see
     if news_data:
@@ -865,14 +989,15 @@ def main():
     # Construct Inventory List if args provided
     inventory_data = None
     if args.inventory is not None and args.sales is not None:
-        inventory_data = [{'sku': 'Main-Product', 'stock': args.inventory, 'daily_sales': args.sales}]
+        inventory_data = [{'sku': product_name_for_sku, 'stock': args.inventory, 'daily_sales': args.sales}]
 
     strategy_mode = args.strategy_mode or "incubation"
-    report = analyze_with_llm(topic, context, mode=mode, strategy_mode=strategy_mode,
+    report = analyze_with_llm(topic, context, mode=mode, strategy_mode=strategy_mode, category=category,
                               inventory_data=inventory_data,
                               listing_text=args.listing,
                               pain_point=args.pain_point,
-                              product_name=topic) # Use topic as product name for now
+                              product_name=product_name_for_sku,
+                              intent_type=intent_type) # Use intent-based product name
     if not report:
         logger.error("❌ Mission Aborted: Analysis Failed.")
         sys.exit(1)
@@ -890,16 +1015,20 @@ def main():
         "metadata": {
             "strategy_mode": strategy_mode,
             "pain_point": args.pain_point or None,
+            "category": args.category,
+            "intent_type": intent_type,
+            "refined_search_query": search_query,
+            "product_name_for_sku": product_name_for_sku
         },
         "market_news": news_data # Inject live news for Frontend "Live Dynamics" column
     }
 
     # --- STEP C: SAVE (PERSISTENCE) ---
     # Store in Memory Engine
-    store_intel(topic, output_package, mode=mode)
+    store_intel(search_query, output_package, mode=mode)
     
     # Save to Supabase reports table
-    save_report_to_db(topic, output_package)
+    save_report_to_db(search_query, output_package)
     
     # Save to market_news table for Live Global Feed
     save_to_market_news(topic, output_package)

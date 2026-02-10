@@ -8,12 +8,13 @@ interface PersonaInputProps {
   onModeChange: (mode: string) => void;
   strategyMode: 'incubation' | 'growth';
   onStrategyModeChange: (mode: 'incubation' | 'growth') => void;
+  category?: string;
   onExecute: (data: any) => void;
   isLoading: boolean;
   loadingText: string;
 }
 
-export function PersonaInput({ mode, onModeChange, strategyMode, onStrategyModeChange, onExecute, isLoading, loadingText }: PersonaInputProps) {
+export function PersonaInput({ mode, onModeChange, strategyMode, onStrategyModeChange, category, onExecute, isLoading, loadingText }: PersonaInputProps) {
   // Common State
   const [topic, setTopic] = useState("");
 
@@ -38,7 +39,8 @@ export function PersonaInput({ mode, onModeChange, strategyMode, onStrategyModeC
     const payload: any = {
       topic: topic,
       mode: mode,
-      strategy_mode: strategyMode
+      strategy_mode: strategyMode,
+      category: category || ""
     };
 
     if (mode === "CROSS_BORDER_CFO") {

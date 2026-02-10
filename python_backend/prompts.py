@@ -76,7 +76,7 @@ SKILL_DEFINITIONS = {
     }
 }
 
-def assemble_system_prompt(role: str, strategy_mode: str, pain_point: Optional[str] = None) -> dict:
+def assemble_system_prompt(role: str, strategy_mode: str, pain_point: Optional[str] = None, category: Optional[str] = None, intent_type: Optional[str] = None, user_input: Optional[str] = None) -> dict:
     """
     Builds the system prompt in 3 layers:
     Layer 1: The Skillset (Based on role)
@@ -88,6 +88,28 @@ def assemble_system_prompt(role: str, strategy_mode: str, pain_point: Optional[s
     role_key = role.upper()
     skill_config = SKILL_DEFINITIONS.get(role_key, SKILL_DEFINITIONS["GENERAL"])
     base_prompt = build_system_prompt(skill_config)
+    
+    # --- LAYER 1.5: CATEGORY CONTEXT (The Hard-Lock) ---
+    category_instruction = ""
+    if category:
+        category_instruction = f"""
+【CATEGORY HARD-LOCK: {category}】
+You are an expert analyst in the **{category}** industry.
+The user is asking about: **{{topic}}**.
+**CRITICAL CONSTRAINT**: Do NOT confuse this with products from other categories.
+(e.g. If category is 'Makeup Tool', analyze 'Face Brushes', NOT 'Toothbrushes' or 'Paint Brushes').
+Only provide advice relevant to **{category}**.
+"""
+        
+        # Add Focus Context based on intent
+        if intent_type and user_input:
+            category_instruction += f"""
+
+【FOCUS CONTEXT】
+The user is analyzing the **{category}** category.
+**Focus Context:** {intent_type} - {user_input}.
+(e.g., If Intent is 'Audience', analyze how to sell {category} TO this audience. Do not treat the audience AS the product.)
+"""
     
     # --- LAYER 2: THE PERSONALITY ---
     strategy_mode = str(strategy_mode).lower()
@@ -145,7 +167,7 @@ Analyze the search results to identify the MOST URGENT/ACUTE pain point automati
 """
 
     # --- ASSEMBLY ---
-    full_system_prompt = f"{base_prompt}\n\n{strategy_instruction}\n\n{pain_point_instruction}"
+    full_system_prompt = f"{base_prompt}\n\n{category_instruction}\n\n{strategy_instruction}\n\n{pain_point_instruction}"
     
     return {
         "full_system_prompt": full_system_prompt,
