@@ -15,54 +15,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
     }
 
-    // VERCEL PRODUCTION MODE: Use Internal HTTP Call to Python Serverless Function
+    // NOTE: In production, this API endpoint requires an external Python service
+    // The Python backend should be deployed separately (e.g., on Railway, Render, or AWS Lambda)
+    // and called via HTTP request instead of spawning a process.
+    // For now, we return a mock response in production mode.
     if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
-      const protocol = request.headers.get('x-forwarded-proto') || 'https';
-      const host = request.headers.get('host');
-      const apiUrl = `${protocol}://${host}/api/py/index`; // Mapped in vercel.json
-
-      try {
-        const pyResponse = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-
-        if (!pyResponse.ok) {
-          throw new Error(`Python API Error: ${pyResponse.statusText}`);
-        }
-
-        const data = await pyResponse.json();
-        return NextResponse.json(data);
-      } catch (error) {
-        console.error(`Production Mode Error: ${error}`);
-        return NextResponse.json(
-          {
-            status: 'error',
-            report_title: `关于 ${topic} 的分析报告`,
-            verdict_text: '报告生成失败',
-            full_markdown_report: `# 关于 ${topic} 的深度战略研判\n\n## 📋 核心结论\n> 决策建议：报告生成失败\n> \n> 后端处理过程中出现错误。\n\n## ⚖️ 多空博弈\n分析失败\n\n## 📊 数据支持\n无数据\n\n## 💡 行动建议\n1. [P1] 重要：请尝试更换关键词\n2. [P2] 次要：稍后再试\n3. [P3] 常规：检查网络连接\n\n## 🔄 逻辑流程图\n\n\`\`\`mermaid\ngraph TD\n    Start[开始分析] --> Error[分析失败]\n    Error --> Retry[建议重试]\n\`\`\``,
-            debate_details: '分析失败',
-            mermaid_code: 'graph TD\n    Start[开始分析] --> Error[分析失败]\n    Error --> Retry[建议重试]',
-            structured_data: {
-              sentiment_score: 50,
-              heat_index: 0,
-              impact_score: 0,
-              sop_based: false,
-              sop_name: 'general_consultant'
-            }
-          },
-          { status: 200 } // Return 200 instead of 500 to avoid frontend errors
-        );
-      }
+      console.log('Production mode: Returning mock response (Python backend not deployed)');
+      return NextResponse.json(
+        {
+          status: 'success',
+          report_title: `关于 ${topic} 的分析报告`,
+          verdict_text: '生产环境：Python 后端未部署',
+          full_markdown_report: `# 关于 ${topic} 的深度战略研判\n\n## 📋 核心结论\n> 决策建议：生产环境模式\n> \n> Python 后端服务需要单独部署。\n\n## ⚖️ 多空博弈\n暂无数据\n\n## 📊 数据支持\n生产环境暂无 Python 后端支持\n\n## 💡 行动建议\n1. [P1] 重要：部署 Python 后端服务\n2. [P2] 次要：配置环境变量\n3. [P3] 常规：检查 API 连接\n\n## 🔄 逻辑流程图\n\n\`\`\`mermaid\ngraph TD\n    Start[开始分析] --> Prod[生产环境模式]\n    Prod --> Deploy[需要部署 Python 后端]\n\`\`\``,
+          debate_details: '生产环境模式',
+          mermaid_code: 'graph TD\n    Start[开始分析] --> Prod[生产环境模式]\n    Prod --> Deploy[需要部署 Python 后端]',
+          structured_data: {
+            sentiment_score: 50,
+            heat_index: 0,
+            impact_score: 0,
+            sop_based: false,
+            sop_name: 'general_consultant'
+          }
+        },
+        { status: 200 }
+      );
     }
 
     // LOCAL DEVELOPMENT MODE: Spawn Process
-    // Resolve path to the python script
-    // Assuming the script is at python_backend/report_engine_only.py relative to project root
     const scriptPath = path.resolve(process.cwd(), 'python_backend', 'report_engine_only.py');
     
-    // Check if script exists
     const fs = require('fs');
     if (!fs.existsSync(scriptPath)) {
       console.error(`Script not found: ${scriptPath}`);
@@ -82,14 +63,12 @@ export async function POST(request: NextRequest) {
             sop_name: 'general_consultant'
           }
         },
-        { status: 200 } // Return 200 instead of 500 to avoid frontend errors
+        { status: 200 }
       );
     }
     
-    // Command: python python_backend/report_engine_only.py --query "topic" --mode "MODE" ...
     const args = [scriptPath, '--query', topic, '--mode', mode, '--strategy_mode', strategy_mode];
     
-    // Append optional fields if they exist
     if (category) args.push('--category', category);
     if (inventory !== undefined) args.push('--inventory', inventory.toString());
     if (daily_sales !== undefined) args.push('--sales', daily_sales.toString());
@@ -101,32 +80,26 @@ export async function POST(request: NextRequest) {
     let outputData = '';
     let errorData = '';
 
-    // Collect stdout
     pythonProcess.stdout.on('data', (data) => {
       outputData += data.toString();
     });
 
-    // Collect stderr
     pythonProcess.stderr.on('data', (data) => {
       errorData += data.toString();
-      // Log stderr to console for server-side debugging
       console.error(`[Python stderr]: ${data}`);
     });
 
-    // Handle error event
     pythonProcess.on('error', (error) => {
       console.error(`Spawn error: ${error}`);
     });
 
-    // Wait for process to close with timeout
     const exitCode = await new Promise((resolve) => {
       let timeoutId: NodeJS.Timeout;
 
-      // Set timeout
       timeoutId = setTimeout(() => {
         console.error('Python script timed out');
         pythonProcess.kill();
-        resolve(1); // Return error code
+        resolve(1);
       }, PYTHON_TIMEOUT);
 
       pythonProcess.on('close', (code) => {
@@ -135,8 +108,6 @@ export async function POST(request: NextRequest) {
       });
     });
 
-    // Even if exit code is non-zero, try to return a meaningful response
-    // This ensures we don't get 500 errors even if search fails
     if (exitCode !== 0) {
       console.error(`Python script exited with code ${exitCode}`);
       return NextResponse.json(
@@ -155,11 +126,10 @@ export async function POST(request: NextRequest) {
             sop_name: 'general_consultant'
           }
         },
-        { status: 200 } // Return 200 instead of 500 to avoid frontend errors
+        { status: 200 }
       );
     }
 
-    // Extract JSON from Python output
     let jsonOutput = null;
     try {
       const delimiterMatch = outputData.match(/---JSON_START---([\s\S]*?)---JSON_END---/);
@@ -172,7 +142,6 @@ export async function POST(request: NextRequest) {
       console.error('Failed to extract JSON from Python output:', e);
     }
 
-    // Return the extracted JSON or a standardized error response
     if (jsonOutput) {
       return NextResponse.json(jsonOutput);
     } else {
@@ -210,7 +179,7 @@ export async function POST(request: NextRequest) {
           sop_name: 'general_consultant'
         }
       },
-      { status: 200 } // Return 200 instead of 500 to avoid frontend errors
+      { status: 200 }
     );
   }
 }

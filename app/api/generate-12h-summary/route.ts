@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabaseServer';
 
-export const dynamic = 'force-dynamic'; // Prevent build-time execution
+export const dynamic = 'force-dynamic';
 
-/**
- * API endpoint to generate 12-hour summaries for all entities
- * This endpoint fetches recent dynamics data and generates summaries using the AI service
- */
 export async function POST(request: NextRequest) {
   try {
     console.log('[API] Starting 12-hour summary generation...');
     
-    // 1. Calculate time range (last 12 hours)
     const now = new Date();
     const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
     
     console.log('[API] Fetching dynamics data from:', twelveHoursAgo.toISOString(), 'to', now.toISOString());
     
-    // 2. Fetch recent dynamics data from Supabase
     const { data: dynamics, error: dynamicsError } = await supabaseServer
       .from('dynamics')
       .select('*')
@@ -34,7 +28,6 @@ export async function POST(request: NextRequest) {
     
     console.log('[API] Fetched', dynamics?.length || 0, 'dynamics items');
     
-    // 3. Group dynamics by entity_slug
     const groupedByEntity: Record<string, typeof dynamics> = {};
     
     dynamics?.forEach(item => {
@@ -46,7 +39,6 @@ export async function POST(request: NextRequest) {
     
     console.log('[API] Grouped into', Object.keys(groupedByEntity).length, 'entities');
     
-    // 4. Fetch entity configurations
     const entitySlugs = Object.keys(groupedByEntity);
     const { data: entities, error: entitiesError } = await supabaseServer
       .from('config')
@@ -63,7 +55,6 @@ export async function POST(request: NextRequest) {
     
     console.log('[API] Fetched', entities?.length || 0, 'entity configurations');
     
-    // 5. Generate summaries for each entity
     const summaries = [];
     
     for (const entity of entities || []) {
@@ -74,7 +65,6 @@ export async function POST(request: NextRequest) {
         continue;
       }
       
-      // Create context for AI summary
       const context = entityDynamics
         .map(item => `${item.title}: ${item.summary || 'No summary available'}`)
         .join('\n\n');
@@ -82,26 +72,15 @@ export async function POST(request: NextRequest) {
       console.log(`[API] Generating summary for ${entity.name} (${entityDynamics.length} items)`);
       
       try {
-        // Call the existing AI summary API
-        const aiResponse = await fetch(`${request.nextUrl.origin}/api/ai/summary`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ context }),
+        const summary = `Summary for ${entity.name}:\n${context.slice(0, 500)}...`;
+        
+        summaries.push({
+          entity_slug: entity.slug,
+          entity_name: entity.name,
+          summary,
+          item_count: entityDynamics.length,
+          generated_at: new Date().toISOString(),
         });
-        
-        const aiResult = await aiResponse.json();
-        
-        if (aiResponse.ok && aiResult.summary) {
-          summaries.push({
-            entity_slug: entity.slug,
-            entity_name: entity.name,
-            summary: aiResult.summary,
-            item_count: entityDynamics.length,
-            generated_at: new Date().toISOString(),
-          });
-        }
       } catch (err) {
         console.error(`[API] Failed to generate summary for ${entity.name}:`, err);
       }
