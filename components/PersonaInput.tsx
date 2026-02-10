@@ -6,12 +6,14 @@ import { Search } from "lucide-react";
 interface PersonaInputProps {
   mode: string;
   onModeChange: (mode: string) => void;
+  strategyMode: 'incubation' | 'growth';
+  onStrategyModeChange: (mode: 'incubation' | 'growth') => void;
   onExecute: (data: any) => void;
   isLoading: boolean;
   loadingText: string;
 }
 
-export function PersonaInput({ mode, onModeChange, onExecute, isLoading, loadingText }: PersonaInputProps) {
+export function PersonaInput({ mode, onModeChange, strategyMode, onStrategyModeChange, onExecute, isLoading, loadingText }: PersonaInputProps) {
   // Common State
   const [topic, setTopic] = useState("");
 
@@ -35,7 +37,8 @@ export function PersonaInput({ mode, onModeChange, onExecute, isLoading, loading
 
     const payload: any = {
       topic: topic,
-      mode: mode
+      mode: mode,
+      strategy_mode: strategyMode
     };
 
     if (mode === "CROSS_BORDER_CFO") {
@@ -70,6 +73,21 @@ export function PersonaInput({ mode, onModeChange, onExecute, isLoading, loading
           <option value="BRAND_ARCHITECT" className="bg-black">🎨 Brand Story</option>
         </select>
 
+        {/* Strategy Mode Selector */}
+        <select
+          value={strategyMode}
+          onChange={(e) => onStrategyModeChange(e.target.value as 'incubation' | 'growth')}
+          className={`shrink-0 border text-white px-2 h-10 rounded-lg text-sm outline-none transition-colors min-w-[180px] cursor-pointer ${
+            strategyMode === 'incubation' 
+              ? 'bg-teal-900/50 border-teal-500/30 focus:border-teal-500' 
+              : 'bg-violet-900/50 border-violet-500/30 focus:border-violet-500'
+          }`}
+          title={strategyMode === 'incubation' ? "Focus on Compliance, Brand Story & Safety" : "Focus on ROI, Efficiency & Competitor Attack"}
+        >
+          <option value="incubation" className="bg-black">🔰 Brand Incubation (0-1)</option>
+          <option value="growth" className="bg-black">🚀 Aggressive Growth (1-100)</option>
+        </select>
+
         {/* Topic Input (Always Visible) */}
         <input 
           type="text"
@@ -83,7 +101,11 @@ export function PersonaInput({ mode, onModeChange, onExecute, isLoading, loading
         <button 
            onClick={handleSubmit}
            disabled={isLoading}
-           className="shrink-0 bg-cyan-600 hover:bg-cyan-500 text-white px-6 h-10 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider"
+           className={`shrink-0 text-white px-6 h-10 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider ${
+             strategyMode === 'incubation'
+               ? 'bg-teal-600 hover:bg-teal-500'
+               : 'bg-violet-600 hover:bg-violet-500'
+           }`}
         >
            {isLoading ? loadingText.split(':')[0] : "EXECUTE"}
         </button>

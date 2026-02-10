@@ -36,7 +36,7 @@ except ImportError:
 try:
     from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
-except ImportError:
+except Exception:
     WEASYPRINT_AVAILABLE = False
 # Removed supabase dependency to avoid pyiceberg/pyroaring/visual c++ issues
 # from supabase import create_client, Client 
@@ -46,6 +46,7 @@ from memory_engine import check_cache as check_memory_cache, store_intel
 from news_engine import fetch_market_news
 from tools import audit_inventory_health, check_listing_compliance, generate_viral_structure
 from knowledge_base import SimpleRAG
+from prompts import get_strategy_prompt
 
 # ================= Configuration & Setup =================
 
@@ -221,7 +222,7 @@ def extract_risk_score(text: str) -> int:
         return 5
     return max(0, min(10, v))
 
-def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL", 
+def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL", strategy_mode: str = "incubation",
                      inventory_data: Optional[List[Dict]] = None,
                      listing_text: Optional[str] = None,
                      product_name: Optional[str] = None,
@@ -279,6 +280,10 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL",
 
     # --- STEP 2: ROLE INITIALIZATION (PROMPT INJECTION) ---
     logger.info("🎭 Step 2: Role Initialization...")
+    
+    # Load Strategy Prompts
+    strategy_prompts = get_strategy_prompt(strategy_mode)
+    logger.info(f"   🛡️ Strategy Mode: {strategy_prompts['role_name']}")
     
     # --- CORE FIX: FORCE UPPERCASE FOR SKILL MATCHING ---
     raw_key = str(mode).strip()
@@ -345,6 +350,7 @@ INSTRUCTION:
 """
 
     BULL_PROMPT = f"""
+    {strategy_prompts['system_instruction']}
     You are **The Growth Strategist (Bull)**.
     Your Philosophy: "Blue Ocean", viral trends, and platform dividends.
     Tone: Optimistic, strategic, visionary.
@@ -391,6 +397,8 @@ INSTRUCTION:
     """
 
     MODERATOR_PROMPT = f"""
+    {strategy_prompts['system_instruction']}
+    {strategy_prompts['veto_instruction']}
     {persona_def}
     
     【CRITICAL INPUT】: Your decision framework is this SOP: {current_skill_sop}
@@ -792,6 +800,7 @@ def main():
     parser.add_argument("mode", nargs="?", help="Expert Mode (positional)")
     parser.add_argument("--query", dest="query_flag", type=str, help="Target topic")
     parser.add_argument("--mode", dest="mode_flag", type=str, help="Expert Mode (e.g. TIKTOK_RISK)")
+    parser.add_argument("--strategy_mode", dest="strategy_mode", type=str, default="incubation", help="Strategy Mode (incubation|growth)")
     parser.add_argument("--auto", action="store_true", help="Run in automatic mode") # Added for compatibility
     
     # New Arguments for Dynamic Forms
@@ -851,7 +860,8 @@ def main():
     if args.inventory is not None and args.sales is not None:
         inventory_data = [{'sku': 'Main-Product', 'stock': args.inventory, 'daily_sales': args.sales}]
 
-    report = analyze_with_llm(topic, context, mode=mode,
+    strategy_mode = args.strategy_mode or "incubation"
+    report = analyze_with_llm(topic, context, mode=mode, strategy_mode=strategy_mode,
                               inventory_data=inventory_data,
                               listing_text=args.listing,
                               pain_point=args.pain_point,

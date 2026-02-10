@@ -9,7 +9,7 @@ const PYTHON_TIMEOUT = 300000; // 5 minutes timeout
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { topic, mode = "GENERAL", inventory, daily_sales, listing_text, pain_point } = body;
+    const { topic, mode = "GENERAL", strategy_mode = "incubation", inventory, daily_sales, listing_text, pain_point } = body;
 
     if (!topic) {
       return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Command: python python_backend/report_engine_only.py --query "topic" --mode "MODE" ...
-    const args = [scriptPath, '--query', topic, '--mode', mode];
+    const args = [scriptPath, '--query', topic, '--mode', mode, '--strategy_mode', strategy_mode];
     
     // Append optional fields if they exist
     if (inventory !== undefined) args.push('--inventory', inventory.toString());

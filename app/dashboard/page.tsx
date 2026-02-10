@@ -53,6 +53,7 @@ export default function DashboardPage() {
   const [reportData, setReportData] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [mode, setMode] = useState("GENERAL");
+  const [strategyMode, setStrategyMode] = useState<'incubation' | 'growth'>('incubation');
 
   // GridBackground component moved inside DashboardPage
   const GridBackground = () => (
@@ -262,6 +263,8 @@ export default function DashboardPage() {
            <PersonaInput 
              mode={mode}
              onModeChange={setMode}
+             strategyMode={strategyMode}
+             onStrategyModeChange={setStrategyMode}
              onExecute={handleGenerate}
              isLoading={loading}
              loadingText={loadingText}
