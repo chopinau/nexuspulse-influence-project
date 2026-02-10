@@ -46,7 +46,7 @@ from memory_engine import check_cache as check_memory_cache, store_intel
 from news_engine import fetch_market_news
 from tools import audit_inventory_health, check_listing_compliance, generate_viral_structure
 from knowledge_base import SimpleRAG
-from prompts import get_strategy_prompt
+from prompts import assemble_system_prompt
 
 # ================= Configuration & Setup =================
 
@@ -281,9 +281,17 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL", strategy_m
     # --- STEP 2: ROLE INITIALIZATION (PROMPT INJECTION) ---
     logger.info("🎭 Step 2: Role Initialization...")
     
-    # Load Strategy Prompts
-    strategy_prompts = get_strategy_prompt(strategy_mode)
-    logger.info(f"   🛡️ Strategy Mode: {strategy_prompts['role_name']}")
+    # 3-Layer Prompt Assembly
+    assembled_prompt_data = assemble_system_prompt(
+        role=mode, 
+        strategy_mode=strategy_mode, 
+        pain_point=pain_point
+    )
+    
+    persona_def = assembled_prompt_data['full_system_prompt']
+    veto_instruction = assembled_prompt_data['veto_instruction']
+    
+    logger.info(f"🧠 Logic Selected: {assembled_prompt_data['role_name']} + {assembled_prompt_data['strategy_mode']} + PainPoint:{'Provided' if pain_point else 'Auto'}")
     
     # --- CORE FIX: FORCE UPPERCASE FOR SKILL MATCHING ---
     raw_key = str(mode).strip()
@@ -291,16 +299,14 @@ def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL", strategy_m
     
     print(f"🔍 DEBUG: Frontend sent '{raw_key}', converted to Key '{skill_key}'")
     
+    # Check if skill key exists just for logging (prompt is already built)
     if skill_key in SKILL_SET:
         print(f"✅ SUCCESS: Found custom persona for {skill_key}")
-        persona_def = SKILL_SET[skill_key]
     else:
         print(f"⚠️ WARNING: Key '{skill_key}' not found in SKILL_SET. Keys available: {list(SKILL_SET.keys())}")
-        print("🔻 Falling back to GENERAL persona.")
-        persona_def = SKILL_SET["GENERAL"]
     
     # Print final prompt summary
-    print(f"🎭 ACTIVE PERSONA: {persona_def[:50]}...")
+    print(f"🎭 ACTIVE PERSONA PROMPT (First 100 chars):\n{persona_def[:100]}...")
     # --- END CORE FIX ---
 
     # 1. PREPARE USER DATA
@@ -350,7 +356,7 @@ INSTRUCTION:
 """
 
     BULL_PROMPT = f"""
-    {strategy_prompts['system_instruction']}
+    {persona_def}
     You are **The Growth Strategist (Bull)**.
     Your Philosophy: "Blue Ocean", viral trends, and platform dividends.
     Tone: Optimistic, strategic, visionary.
@@ -374,6 +380,7 @@ INSTRUCTION:
     """
 
     BEAR_PROMPT = f"""
+    {persona_def}
     You are **The Risk Controller (Bear)**.
     Your Philosophy: "Inventory Trap", margin compression, and supply chain fragility.
     Tone: Ruthless, pessimistic, data-driven.
@@ -397,9 +404,9 @@ INSTRUCTION:
     """
 
     MODERATOR_PROMPT = f"""
-    {strategy_prompts['system_instruction']}
-    {strategy_prompts['veto_instruction']}
     {persona_def}
+    You are **The Debate Moderator**.
+    {veto_instruction}
     
     【CRITICAL INPUT】: Your decision framework is this SOP: {current_skill_sop}
     
@@ -880,6 +887,10 @@ def main():
         "debate_details": report.get("debate_details", ""),
         "structured_data": report.get("structured_data", {}),
         "visualization_data": report.get("visualization_data", {}),
+        "metadata": {
+            "strategy_mode": strategy_mode,
+            "pain_point": args.pain_point or None,
+        },
         "market_news": news_data # Inject live news for Frontend "Live Dynamics" column
     }
 

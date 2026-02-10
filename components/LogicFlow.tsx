@@ -1,7 +1,6 @@
 "use client"; 
  
  import React, { useEffect, useRef, useState } from "react"; 
- import mermaid from "mermaid"; 
  import { Maximize2, GitGraph, Share2 } from "lucide-react"; 
  
 const LogicFlow = ({ code }: { code?: string }) => { 
@@ -49,32 +48,34 @@ const LogicFlow = ({ code }: { code?: string }) => {
     if (chartRef.current) { 
       chartRef.current.innerHTML = '';
       
-      mermaid.initialize({ 
-        startOnLoad: false, // Changed to false for manual control
-        theme: "base", // Using base theme for better custom control
-        themeVariables: {
-          darkMode: true,
-          background: '#18181b', // zinc-900
-          primaryColor: "#06b6d4", // cyan-500
-          primaryTextColor: "#ffffff",
-          primaryBorderColor: "#06b6d4",
-          lineColor: "#e4e4e7", // zinc-200 (Bright lines)
-          secondaryColor: "#3b82f6", // blue-500
-          tertiaryColor: "#10b981", // emerald-500
-          mainBkg: "#27272a", // zinc-800
-          nodeBorder: "#52525b", // zinc-600
-          clusterBkg: "#27272a",
-          clusterBorder: "#52525b",
-          defaultLinkColor: "#e4e4e7", // zinc-200
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-          fontSize: "14px",
-        },
-        securityLevel: "loose", 
-      }); 
-      
-      // 手动渲染 
+      // 动态导入 mermaid 库
       const renderChart = async () => { 
         try { 
+          const { default: mermaid } = await import('mermaid');
+          
+          mermaid.initialize({ 
+            startOnLoad: false, // Changed to false for manual control
+            theme: "base", // Using base theme for better custom control
+            themeVariables: {
+              darkMode: true,
+              background: '#18181b', // zinc-900
+              primaryColor: "#06b6d4", // cyan-500
+              primaryTextColor: "#ffffff",
+              primaryBorderColor: "#06b6d4",
+              lineColor: "#e4e4e7", // zinc-200 (Bright lines)
+              secondaryColor: "#3b82f6", // blue-500
+              tertiaryColor: "#10b981", // emerald-500
+              mainBkg: "#27272a", // zinc-800
+              nodeBorder: "#52525b", // zinc-600
+              clusterBkg: "#27272a",
+              clusterBorder: "#52525b",
+              defaultLinkColor: "#e4e4e7", // zinc-200
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              fontSize: "14px",
+            },
+            securityLevel: "loose", 
+          }); 
+          
           const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
           const { svg } = await mermaid.render(id, graphToRender); 
           if (chartRef.current) {
@@ -89,7 +90,7 @@ const LogicFlow = ({ code }: { code?: string }) => {
           console.error("Mermaid 渲染失败:", error); 
           setRenderError('render');
         } 
-      }; 
+      };
 
       renderChart(); 
     } 

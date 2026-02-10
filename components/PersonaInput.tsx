@@ -82,10 +82,10 @@ export function PersonaInput({ mode, onModeChange, strategyMode, onStrategyModeC
               ? 'bg-teal-900/50 border-teal-500/30 focus:border-teal-500' 
               : 'bg-violet-900/50 border-violet-500/30 focus:border-violet-500'
           }`}
-          title={strategyMode === 'incubation' ? "Focus on Compliance, Brand Story & Safety" : "Focus on ROI, Efficiency & Competitor Attack"}
+          title={strategyMode === 'incubation' ? "AI will act as a Conservative Guardian. Veto Power: ON for all risks." : "AI will act as a Ruthless Growth Hacker. Veto Power: ON only for fatal risks (bans)."}
         >
-          <option value="incubation" className="bg-black">🔰 Brand Incubation (0-1)</option>
-          <option value="growth" className="bg-black">🚀 Aggressive Growth (1-100)</option>
+          <option value="incubation" className="bg-black">🛡️ Safety First (Compliance & Brand Protection)</option>
+          <option value="growth" className="bg-black">🚀 Profit First (Aggressive Growth & ROI)</option>
         </select>
 
         {/* Topic Input (Always Visible) */}

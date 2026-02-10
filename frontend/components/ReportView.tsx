@@ -10,6 +10,47 @@ interface ReportViewProps {
   report: any;
 }
 
+function StrategyContextCard({ report }: { report: any }) {
+  const mode = report?.structured_data?.sop_name || 'GENERAL';
+  const strategyMode = report?.metadata?.strategy_mode || 'incubation';
+  const painPoint = report?.metadata?.pain_point;
+
+  const roleDisplay = {
+    'TIKTOK_MARKETING': 'Viral Content Director',
+    'CROSS_BORDER_CFO': 'Ruthless CFO',
+    'TIKTOK_RISK': 'Compliance Lawyer',
+    'BRAND_ARCHITECT': 'Ogilvy Creative Director',
+    'AMAZON_SEO': 'A9 Algorithm Expert',
+    'GENERAL': 'McKinsey Consultant'
+  }[mode] || 'Strategic Consultant';
+
+  const strategyDisplay = strategyMode === 'incubation' ? 'Safety First' : 'Profit First';
+  const painPointDisplay = painPoint || '🔍 Auto-Detected from Trends';
+
+  return (
+    <div className="bg-gray-900/30 rounded-lg p-4 mb-6 border border-white/10">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+        <h3 className="text-sm font-bold text-cyan-300 uppercase tracking-wider">Mission Briefing</h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div>
+          <span className="text-gray-400 block">🤖 Expert Role</span>
+          <span className="text-white font-mono">{roleDisplay}</span>
+        </div>
+        <div>
+          <span className="text-gray-400 block">⚖️ Strategy</span>
+          <span className="text-white font-mono">{strategyDisplay}</span>
+        </div>
+        <div>
+          <span className="text-gray-400 block">🎯 Pain Point</span>
+          <span className="text-white font-mono">{painPointDisplay}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ReportView({ report }: ReportViewProps) {
   // Data extraction with safety checks
   const vizData = report?.visualization_data || {};
@@ -27,6 +68,9 @@ export default function ReportView({ report }: ReportViewProps) {
             {report?.report_title || 'Comprehensive Market Analysis'}
           </p>
         </div>
+
+        {/* Strategy Context Card */}
+        <StrategyContextCard report={report} />
 
         {/* Top Section: Key Insight Cards */}
         <section className="mb-6">
@@ -48,40 +92,45 @@ export default function ReportView({ report }: ReportViewProps) {
         </section>
 
         {/* Bottom Section: Logic Flow and Full Report */}
-        <section className="my-6">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-xl p-6 shadow-lg mb-6">
-            <h3 className="text-lg font-semibold text-gray-200 mb-4">Analysis Logic Flow</h3>
-            <div className="h-[400px] w-full">
-              <LogicFlow code={report?.mermaid_code} />
-            </div>
-          </div>
-
-          {/* Full Strategy Briefing */}
-          <details className="mt-6 bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-xl overflow-hidden group">
-            <summary className="p-4 font-medium text-white cursor-pointer flex items-center gap-2 hover:bg-gray-800/50 transition-colors select-none">
-              <span className="text-lg group-open:rotate-90 transition-transform duration-200">▶</span>
-              <span className="text-lg">📜</span>
-              View Full Strategy Briefing
-            </summary>
-            <div className="p-6 border-t border-gray-800">
-              <div className="prose prose-invert max-w-none prose-headings:text-cyan-400 prose-a:text-purple-400">
-                {report?.full_markdown_report ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {report.full_markdown_report}
-                  </ReactMarkdown>
-                ) : (
-                  <p className="text-gray-400">No detailed report available</p>
-                )}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-6">
+          <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm min-h-[400px]">
+            <h3 className="text-lg font-semibold text-cyan-400 mb-4">Logic Flow</h3>
+            {report?.mermaid_code ? (
+              <LogicFlow code={report.mermaid_code} />
+            ) : (
+              <div className="flex items-center justify-center h-64 text-gray-500">
+                <p>Logic flow diagram will appear here...</p>
               </div>
-            </div>
-          </details>
+            )}
+          </div>
+          
+          <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 backdrop-blur-sm min-h-[400px]">
+            <h3 className="text-lg font-semibold text-cyan-400 mb-4">Strategic Verdict</h3>
+            {report?.verdict_text ? (
+              <div className="prose prose-invert prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {report.verdict_text}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-gray-500">
+                <p>Strategic verdict will appear here...</p>
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* Footer */}
-        <footer className="mt-12 pt-6 border-t border-gray-800 text-center text-gray-500 text-sm">
-          <p>Strategic Intelligence Report • Generated by AI Analysis Engine</p>
-          <p className="mt-1">{new Date().toLocaleDateString()}</p>
-        </footer>
+        {/* Full Report Section */}
+        {report?.full_markdown_report && (
+          <section className="bg-gray-900/50 rounded-xl p-6 border border-white/5 backdrop-blur-sm">
+            <h3 className="text-lg font-semibold text-cyan-400 mb-4">Full Intelligence Report</h3>
+            <div className="prose prose-invert prose-sm max-w-none">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {report.full_markdown_report}
+              </ReactMarkdown>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
