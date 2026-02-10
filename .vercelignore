@@ -8,3 +8,23 @@ python_backend/__pycache__
 data
 tests
 tmp
+# Exclude Python backend files from Vercel deployment
+python_backend
+scripts
+# Exclude patch files
+patch_*.py
+# Exclude API Python files
+api/*.py
+# Exclude Python cache and build artifacts
+*.pyc
+*.pyo
+*.pyd
+.Python
+__pycache__/
+*.so
+# Exclude data directories
+data/
+knowledge/
+# Exclude test files
+test_*.py
+*_test.py

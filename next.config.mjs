@@ -6,6 +6,8 @@ const withNextIntl = createNextIntlPlugin();
 const nextConfig = {
     // Enable tree shaking for better optimization
     productionBrowserSourceMaps: false,
+    // Optimize file tracing to reduce bundle size
+    outputFileTracing: true,
     // Configure webpack to handle mermaid's dynamic imports
     webpack: (config, { isServer }) => {
         // Exclude mermaid from server-side bundling
