@@ -1,1046 +1,239 @@
-# -*- coding: utf-8 -*-
-"""
-NexusPulse Report Engine - Level 2: Agent Skills + BettaFish Integration
-"Ultimate Backend Upgrade" Edition
-Features:
-- Agent Skills (SOP) Routing
-- BettaFish (Multi-Agent Debate)
-- DeepSeek-V3 Intent Classification
-- Tavily API Integration
-- Structured Markdown Output with Mermaid Diagrams
-- Direct Supabase Integration (Reports Cache + Market News)
-"""
-
-import os
-import sys
 import json
-import re
-import argparse
-import requests
-from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Any
-from pathlib import Path
-
-# Third-party imports
-from dotenv import load_dotenv
-from loguru import logger
+import os
+import traceback
+import concurrent.futures
 from tavily import TavilyClient
+from llm_client import call_llm
+from dotenv import load_dotenv
 
-# Optional Imports for Heavy Libraries
-try:
-    import matplotlib.pyplot as plt
-    MATPLOTLIB_AVAILABLE = True
-except ImportError:
-    MATPLOTLIB_AVAILABLE = False
+load_dotenv()
+tavily_client = TavilyClient(api_key=os.environ.get("TAVILY_API_KEY"))
 
-try:
-    from weasyprint import HTML
-    WEASYPRINT_AVAILABLE = True
-except Exception:
-    WEASYPRINT_AVAILABLE = False
-# Removed supabase dependency to avoid pyiceberg/pyroaring/visual c++ issues
-# from supabase import create_client, Client 
+# === 1. DORK LIBRARY (UNCHANGED) ===
+DORK_LIBRARY = {
+    "compliance": {
+        "US": "site:cpsc.gov recalls OR site:fda.gov regulations OR site:ftc.gov 'false advertising'",
+        "EU": "site:ec.europa.eu 'CE marking' OR site:rfs.europa.eu 'safety recall'",
+        "SEA": "site:sirim.my certification OR site:kemenperin.go.id SNI",
+        "GLOBAL": "site:iso.org safety standards regulations"
+    },
+    "selection": {
+        "GLOBAL": "site:amazon.com 'best seller' 'customer reviews' OR site:ebay.com 'sold listings' price",
+        "SEA": "site:shopee.com 'sold' price OR site:lazada.com reviews"
+    },
+    "pain": {
+        "GLOBAL": "site:reddit.com 'waste of money' OR 'stopped working' OR 'scam' -site:promotions",
+        "EU": "site:trustpilot.com reviews complaints problems"
+    },
+    "supply": {
+        "GLOBAL": "site:alibaba.com 'FOB Price' MOQ OR site:made-in-china.com manufacturer factory",
+        "LOGISTICS": "site:amazon.com 'product dimensions' 'item weight' shipping"
+    },
+    "growth": {
+        "GLOBAL": "site:tiktok.com/tag viral trends OR site:youtube.com 'unboxing' review views"
+    },
+    "culture": {
+        "GLOBAL": "cultural taboos symbolism mistakes marketing"
+    }
+}
 
-from agent_skills import SKILL_SET, SEARCH_PROMPTS
-from memory_engine import check_cache as check_memory_cache, store_intel
-from news_engine import fetch_market_news
-from tools import audit_inventory_health, check_listing_compliance, generate_viral_structure
-from knowledge_base import SimpleRAG
-from prompts import assemble_system_prompt
-
-# ================= Configuration & Setup =================
-
-# Determine Paths
-current_file_path = Path(__file__).resolve()
-python_backend_dir = current_file_path.parent
-project_root_dir = python_backend_dir.parent
-skills_dir = python_backend_dir / 'skills'
-
-# Load Environment Variables
-load_dotenv(dotenv_path=project_root_dir / '.env')
-
-# API Keys
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("REPORT_ENGINE_API_KEY")
-SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-
-if not TAVILY_API_KEY:
-    logger.warning("⚠️ TAVILY_API_KEY not found in environment variables. Will fallback to Mock Data.")
-
-# Constants
-MAX_CONTENT_LENGTH = 15000  # Truncate combined text to avoid context overflow
-
-# Configure Logging
-logger.remove()
-logger.add(sys.stderr, format="<green>{time:HH:mm:ss}</green> | <level>{message}</level>", level="INFO")
-
-# ================= Core Functions =================
-
-def load_skill_sop(skill_name: str) -> str:
-    """
-    Load SOP from skills directory
-    """
-    skill_file = skills_dir / f"{skill_name}.md"
-    if skill_file.exists():
-        with open(skill_file, 'r', encoding='utf-8') as f:
-            return f.read()
-    # Fallback to general consultant
-    general_file = skills_dir / "general_consultant.md"
-    if general_file.exists():
-        with open(general_file, 'r', encoding='utf-8') as f:
-            return f.read()
-    return ""
-
-def determine_user_intent(query: str) -> str:
-    """
-    Determine user intent using DeepSeek-V3
-    Returns skill name (e.g., "inventory_risk", "marketing", "crisis_management")
-    """
-    # --- FIX 1: FORCE INTENT ROUTING ---
-    force_keywords = ["temu", "shein", "amazon", "tiktok", "swimwear", "inventory", "stock", "fba", "dropshipping", "e-commerce", "选品", "跨境", "库存", "备货"]
-    if any(k in query.lower() for k in force_keywords):
-        logger.info("DEBUG: 🟢 Forced Intent Routing -> Cross-Border Skill Loaded.")
-        return "cross_border_ecommerce"
-
-    if not DEEPSEEK_API_KEY:
-        logger.warning("⚠️ API Key missing. Using default skill.")
-        return "general_consultant"
-    
-    logger.info("🧠 Analyzing user intent...")
-    
-    system_prompt = "你是一个意图分类器。请分析用户的问题，判断其属于哪个垂直领域，并返回对应的技能名称。"
-    user_prompt = f"用户问题: {query}\n\n请从以下选项中选择一个最合适的技能名称：\n1. inventory_risk (选品风控)\n2. marketing (营销)\n3. crisis_management (危机公关)\n4. general_consultant (通用顾问)\n\n只返回技能名称，不返回其他内容。"
-    
-    def call_llm(system_p, user_p):
-        api_url = "https://api.deepseek.com/v1/chat/completions"
-        payload = {
-            "model": "deepseek-chat",
-            "messages": [
-                {"role": "system", "content": system_p},
-                {"role": "user", "content": user_p}
-            ],
-            "temperature": 0.1
-        }
-        headers = {
-            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        try:
-            response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"]
-        except Exception as e:
-            logger.error(f"❌ Intent classification failed: {e}")
-            return "general_consultant"
-    
-    intent = call_llm(system_prompt, user_prompt)
-    if intent:
-        intent = intent.strip().lower()
-    else:
-        return "general_consultant"
-    
-    # Validate intent
-    valid_skills = ["inventory_risk", "marketing", "crisis_management", "general_consultant"]
-    if intent not in valid_skills:
-        logger.warning(f"⚠️ Invalid intent: {intent}. Using general_consultant.")
-        return "general_consultant"
-    
-    logger.info(f"🎯 User intent classified as: {intent}")
-    return intent
-
-def collect_intelligence(query: str, mode: str = "GENERAL", category: Optional[str] = None) -> str:
-    """
-    Collect intelligence using Tavily API with Multi-Persona Expansion.
-    Step 1: Intelligent Search Expansion (The Setup)
-    """
-    logger.info(f"🔍 Starting Intelligent Search Expansion for: {query} (Mode: {mode}, Category: {category})")
-    
+def generate_focus_topic(product: str, persona: str) -> dict:
+    prompt = f"Role: Product Strategist. Task: Niche down '{product}' for '{persona}' into a specific SKU. Output JSON: {{ 'focus_topic': '...', 'target_market': 'US' }}"
     try:
-        # 1. Initialize Tavily
-        api_key = TAVILY_API_KEY
-        if not api_key:
-            raise ValueError("TAVILY_API_KEY not found in environment variables")
-        client = TavilyClient(api_key=api_key)
+        res = call_llm(prompt, response_format="json")
+        return json.loads(res)
+    except:
+        return {"focus_topic": product, "target_market": "US"}
 
-        # 2. Define Sub-Queries (Adaptive based on Mode)
-        search_suffix = SEARCH_PROMPTS.get(mode, SEARCH_PROMPTS["GENERAL"])
-        
-        # --- COMPOSITE QUERY CONSTRUCTION (Hard-Lock) ---
-        base_query = f"{category} {query}" if category else query
-        logger.info(f"🔒 Hard-Lock Active: Composite Query = '{base_query}'")
-
-        sub_queries = [
-            f"{base_query} {search_suffix}",
-            f"{base_query} market trends growth opportunities viral signals",   # For Bull
-            f"{base_query} supply chain costs inventory risk price competition", # For Bear
-            f"{base_query} consumer complaints product quality negative reviews" # For Auditor/Risk
-        ]
-        
-        combined_context = ""
-        
-        # 3. Execute Searches
-        for sub_q in sub_queries:
-            logger.info(f"   🔎 Sub-Query: {sub_q}")
-            try:
-                response = client.search(query=sub_q, search_depth="advanced", max_results=2, include_answer=False)
-                combined_context += f"\n--- SEARCH CONTEXT: {sub_q} ---\n"
-                for result in response.get('results', []):
-                    combined_context += f"- {result.get('content')}\n"
-            except Exception as e:
-                logger.warning(f"   ⚠️ Sub-query failed: {e}")
-                
-        if not combined_context.strip():
-             raise ValueError("All sub-queries returned empty results")
-             
-        logger.success(f"✅ Intelligence Collection Complete. Context size: {len(combined_context)} chars.")
-        return combined_context[:MAX_CONTENT_LENGTH]
-
-    except Exception as e:
-        logger.warning(f"DEBUG: ⚠️ Search/API failed ({e}). Proceeding with Internal Knowledge.")
-        # FALLBACK CONTEXT FOR LLM - FORCE EXECUTION
-        return f"Search failed (Error: {e}). Please analyze '{query}' based on your internal knowledge about this industry. Do NOT hallucinate specific recent news if you don't know it, but provide general strategic analysis based on standard industry logic for this topic."
-
-def strip_code_fences(s: str) -> str:
-    if not s:
+# === 2. PARALLEL SEARCH ENGINE (UNCHANGED) ===
+def fetch_agent_data(agent_name: str, topic: str, market: str):
+    try:
+        dorks = DORK_LIBRARY.get(agent_name, {})
+        query_template = dorks.get(market, dorks.get("GLOBAL", ""))
+        final_query = f"{topic} {query_template}"
+        print(f"   🚀 [{agent_name}] Searching: {final_query[:30]}...")
+        response = tavily_client.search(query=final_query, search_depth="advanced", max_results=3)
+        return f"\n=== {agent_name.upper()} INTEL ===\n" + "\n".join([f"- {r['title']}: {r['content'][:300]}" for r in response['results']])
+    except:
         return ""
-    m = re.search(r"```(?:mermaid)?\s*([\s\S]*?)```", s, flags=re.IGNORECASE)
-    if m:
-        return m.group(1).strip()
-    s = re.sub(r"^\s*```(?:mermaid)?\s*", "", s, flags=re.IGNORECASE)
-    s = re.sub(r"\s*```\s*$", "", s)
-    return s.strip()
 
+def get_market_intel(topic: str, market: str) -> dict:
+    print(f"🔍 Omni-Scan: {topic} [{market}]")
+    agents = ["compliance", "selection", "pain", "supply", "growth", "culture"]
+    full_context = ""
+    all_news = []
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+        future_to_agent = {executor.submit(fetch_agent_data, agent, topic, market): agent for agent in agents}
+        for future in concurrent.futures.as_completed(future_to_agent):
+            full_context += future.result()
 
-def extract_risk_score(text: str) -> int:
-    if not text:
-        return 5
-    m = re.search(r"(?:Risk\s*Score|风险评分|风险指数)[：:\s]*([0-9]{1,2})\s*/\s*10", text, flags=re.IGNORECASE)
-    if not m:
-        m = re.search(r"([0-9]{1,2})\s*/\s*10", text)
-    if not m:
-        return 5
     try:
-        v = int(m.group(1))
-    except Exception:
-        return 5
-    return max(0, min(10, v))
-
-
-def analyze_user_intent(category: str, user_input: str) -> Dict:
-    """
-    Analyze user intent relative to the category using LLM
-    Returns a dict with intent_type, refined_search_query, and product_name_for_sku
-    """
-    if not DEEPSEEK_API_KEY:
-        # Fallback logic if no API key
-        return {
-            'intent_type': 'Product',
-            'refined_search_query': f"{category} {user_input}",
-            'product_name_for_sku': f"{category.replace(' ', '-')}-Gen1"
-        }
-    
-    logger.info(f"🧠 Analyzing user intent: Category='{category}', Input='{user_input}'")
-    
-    system_prompt = "你是一个意图分类器。请分析用户输入相对于类别的意图。"
-    user_prompt = f"""Context: User is analyzing category '{category}'. Input: '{user_input}'.
-Determine the intent:
-1. Is it a **Sub-Product**? (e.g., 'Leggings', 'Mat')
-2. Is it a **Target Audience**? (e.g., 'Student', 'Moms')
-3. Is it a **Brand/Competitor**? (e.g., 'Lululemon')
-4. Is it a **Feature/Material**? (e.g., 'Nylon', 'Breathable')
-
-Return JSON:
-{{
-  'intent_type': 'Audience' | 'Product' | 'Brand' | 'Feature',
-  'refined_search_query': '...optimized string for Tavily...',
-  'product_name_for_sku': '...name to be used for mock inventory...'
-}}
-"""
-    
-    # Call LLM
-    def call_llm(system_p, user_p):
-        api_url = "https://api.deepseek.com/v1/chat/completions"
-        payload = {
-            "model": "deepseek-chat",
-            "messages": [
-                {"role": "system", "content": system_p},
-                {"role": "user", "content": user_p}
-            ],
-            "temperature": 0.1
-        }
-        headers = {
-            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        try:
-            response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
-            content = response.json()["choices"][0]["message"]["content"]
-            return content
-        except Exception as e:
-            logger.error(f"❌ Intent classification failed: {e}")
-            return None
-    
-    # Get LLM response
-    llm_response = call_llm(system_prompt, user_prompt)
-    
-    if not llm_response:
-        # Fallback if LLM call fails
-        return {
-            'intent_type': 'Product',
-            'refined_search_query': f"{category} {user_input}",
-            'product_name_for_sku': f"{category.replace(' ', '-')}-Gen1"
-        }
-    
-    # Parse JSON response
-    try:
-        # Extract JSON from response
-        json_match = re.search(r'\{[\s\S]*\}', llm_response)
-        if json_match:
-            json_str = json_match.group(0)
-            result = json.loads(json_str)
+        news_res = tavily_client.search(query=f"{topic} market news reviews {market}", max_results=6)
+        all_news = news_res['results']
+    except:
+        pass
             
-            # Validate result
-            if all(key in result for key in ['intent_type', 'refined_search_query', 'product_name_for_sku']):
-                logger.info(f"✅ Intent analysis complete: {result['intent_type']}")
-                return result
-    except Exception as e:
-        logger.error(f"❌ Failed to parse intent JSON: {e}")
-    
-    # Fallback if parsing fails
-    return {
-        'intent_type': 'Product',
-        'refined_search_query': f"{category} {user_input}",
-        'product_name_for_sku': f"{category.replace(' ', '-')}-Gen1"
-    }
+    return {"context": full_context[:25000], "news": all_news}
 
-def analyze_with_llm(topic: str, context: str, mode: str = "GENERAL", strategy_mode: str = "incubation",
-                     category: Optional[str] = None,
-                     inventory_data: Optional[List[Dict]] = None,
-                     listing_text: Optional[str] = None,
-                     product_name: Optional[str] = None,
-                     pain_point: Optional[str] = None,
-                     intent_type: Optional[str] = None) -> Dict:
-    """
-    Call DeepSeek/Gemini to generate the report with Agent Skills + BettaFish architecture.
-    Returns parsed JSON object with 'content', 'sentiment_score', etc.
-    """
-    if DEEPSEEK_API_KEY:
-        logger.info(f"DEBUG: ✅ API Key detected. Engaging Expert Agents (Mode: {mode})...")
+# === 3. LOGIC MAPPED ANALYSIS ===
+def analyze_with_llm(components: dict) -> dict:
+    topic = components.get("focus_topic")
+    market = components.get("target_market", "US")
+    intel = get_market_intel(topic, market)
     
-    if not DEEPSEEK_API_KEY:
-        logger.warning("⚠️ API Key missing. Using model base knowledge for analysis.")
-        # ... (keep existing fallback logic)
-        report_title = f"{topic} Market Sentiment & Strategic Analysis"
-        content_md = f"# 关于 {topic} 的深度战略研判\n\n## 📋 核心结论\n> 决策建议：基于模型基座分析\n> \n> 未找到实时信号，基于行业最佳实践提供建议。\n\n## ⚖️ 多空博弈\n基于模型内置知识进行分析\n\n## 📊 数据支持\n无实时数据\n\n## 💡 行动建议\n1. [P1] 重要：基于行业最佳实践制定战略\n2. [P2] 次要：持续监控市场动态\n3. [P3] 常规：建立预警机制\n\n## 🔄 逻辑流程图\n\n```mermaid\ngraph TD\n    Start[开始分析] --> NoData[无实时数据]\n    NoData --> ModelKnowledge[基于模型知识]\n    ModelKnowledge --> GenerateAnalysis[生成分析]\n    GenerateAnalysis --> FinalConclusion[最终结论]\n```"
+    system_prompt = """
+    ROLE: NexusPulse Strategic Council. 
+    TASK: Analyze the product using the 6-Agent Framework, then synthesize a 'CEO Chain of Thought'.
+    
+    STEP 1: AGENT ANALYSIS (Detailed)
+    - Selection: Define precise niche & competitors.
+    - Culture: Define target persona & taboos.
+    - Pain: Find top user complaint.
+    - Supply: Define core feature & logistics.
+    - Compliance: Check regulations.
+    - Growth: Define viral hook.
+
+    STEP 2: NARRATIVE SPINE (Synthesis)
+    - You must extract the narrative nodes DIRECTLY from the agents above.
+    - **Who**: Extracted from Culture Agent (Target Persona).
+    - **Scenario**: Extracted from Pain Agent (Usage Context).
+    - **Pain**: Extracted from Pain Agent (Top Complaint).
+    - **Solution**: Extracted from Supply/Selection Agent (Key Feature).
+    - **Hook**: Extracted from Growth Agent (Marketing Angle).
+    - DO NOT INVENT NEW CONCEPTS. Use the exact keywords found in Step 1.
+    
+    OUTPUT JSON (STRICT):
+    {
+        "verdict": "GO" | "CAUTION" | "KILL",
+        "final_summary": "Strategic imperative.",
+        "narrative": {
+            "root": "The Precise Niche Product",
+            "who": "Target Persona (Max 4 words)",
+            "scenario": "Usage Context (Max 4 words)",
+            "pain": "Core Pain Point (Max 4 words)",
+            "solution": "Killer Feature (Max 4 words)",
+            "moat": "Defensive Moat (Max 4 words)",
+            "hook": "Marketing Hook (Max 4 words)"
+        },
+        "agents": {
+            "selection": { "score": 8.5, "title": "Niche", "analysis": "..." },
+            "culture": { "score": 90, "title": "Fit", "taboo_risk": "...", "analysis": "..." },
+            "pain": { "urgency": 9.2, "title": "Pain", "top_pain": "...", "solution_rate": 88, "analysis": "..." },
+            "compliance": { "risk": 2, "title": "Risk", "red_lines": 0, "fix_cost": "$0", "red_line_reason": "...", "analysis": "..." },
+            "supply": { "dos": 35, "title": "Supply", "cliff_risk": "Low", "analysis": "..." },
+            "growth": { "prob": 80, "title": "Growth", "tiktok_hook": "...", "analysis": "..." }
+        },
+        "competitors": [ {"name": "...", "price": "...", "weakness": "..."} ]
+    }
+    """
+    
+    try:
+        user_prompt = f"Product: {topic}\nMarket: {market}\n\nINTEL:\n{intel['context']}"
+        raw = call_llm(user_prompt, system_prompt=system_prompt, response_format="json")
+        data = json.loads(raw)
+        
+        # === THE LOGIC-MAPPED MERMAID ===
+        nav = data.get('narrative', {})
+        verdict = data.get('verdict')
+        color = "#22c55e" if verdict == "GO" else ("#ef4444" if verdict == "KILL" else "#eab308")
+
+        mermaid = f"""
+        graph TD
+            %% Base Classes - CLEAN & LARGE
+            classDef spine fill:#000,stroke:#fff,stroke-width:2px,color:#fff,font-size:20px,font-weight:bold;
+            classDef context fill:#111,stroke:#666,stroke-width:1px,color:#aaa,stroke-dasharray: 5 5,font-size:16px;
+            classDef final fill:{color},stroke:#fff,stroke-width:4px,color:#000,font-size:24px,font-weight:black;
+
+            %% The Narrative Spine
+            Root(("{nav.get('root', topic)[:20]}..."))
+            Target["👤 {nav.get('who', 'User')}"]
+            Scene["🏙️ {nav.get('scenario', 'Context')}"]
+            Pain["🔥 {nav.get('pain', 'Pain')}"]
+            Sol["🛠️ {nav.get('solution', 'Solution')}"]
+            Moat["🛡️ {nav.get('moat', 'Moat')}"]
+            Hook["🎣 {nav.get('hook', 'Hook')}"]
+            End>🏁 {verdict}]
+
+            %% Logic Flow
+            Root ==> Target
+            Target -.-> Scene
+            Scene ==> Pain
+            Pain ==> Sol
+            Sol --> Moat
+            Moat ==> Hook
+            Hook ==> End
+
+            %% Styling
+            class Root,Target,Pain,Sol,Moat,Hook spine;
+            class Scene context;
+            class End final;
+            
+            %% Link Styling
+            linkStyle 0,2,3,5,6 stroke:{color},stroke-width:3px;
+            linkStyle 1,4 stroke:#666,stroke-width:1px,stroke-dasharray: 5 5;
+        """
+        
+        deep_report = generate_deep_report(data, topic)
+        
         return {
-            "report_title": report_title,
-            "content": content_md,
-            "mermaid_code": "graph TD\n    Start[开始分析] --> NoData[无实时数据]\n    NoData --> ModelKnowledge[基于模型知识]\n    ModelKnowledge --> GenerateAnalysis[生成分析]\n    GenerateAnalysis --> FinalConclusion[最终结论]",
-            "debate_details": "基于模型内置知识的模拟辩论：在缺乏实时数据的情况下，建议以保守策略为主，建立监控和预警机制。",
-            "metadata": {
-                "sentiment_score": 50,
-                "heat_index": 0,
-                "impact_score": 0,
-                "sop_based": False,
-                "sop_name": "general_consultant"
+            "structured_data": {
+                "verdict": verdict,
+                "final_summary": data['final_summary'],
+                "agents": data['agents'],
+                "competitors": data.get('competitors', []),
+                "mermaid_code": mermaid,
+                "news": intel['news'],
+                "full_report": deep_report
             },
-            "raw_response": content_md
+            "markdown_report": deep_report
         }
+    except Exception as e:
+        traceback.print_exc()
+        return {"error": str(e)}
 
-    logger.info("🧠 Initializing Agent Skills + BettaFish architecture...")
-
-    # --- STEP 0: RAG INITIALIZATION (Knowledge Base) ---
-    logger.info("📚 Initializing RAG Knowledge Base...")
-    rag = SimpleRAG()
+def generate_deep_report(data, topic):
+    ag = data['agents']
+    nav = data.get('narrative', {})
     
-    # Dynamic Loading from data/knowledge
-    knowledge_dir = project_root_dir / 'data' / 'knowledge'
-    logger.info(f"📂 Loading knowledge from: {knowledge_dir}")
-    rag.load_directory(str(knowledge_dir))
-    
-    # Query RAG
-    rag_context = rag.query(topic)
-    logger.info(f"   ✅ RAG Retrieval: {len(rag_context)} chars found.")
+    return f"""
+# 🚀 跨境六维深度研报：{topic}
+## 1. 🏁 CEO 最终裁决：{data.get('verdict')}
+> **战略定调**：{data.get('final_summary')}
 
-    # --- STEP 1: SKILL ROUTING AND LOADING ---
-    logger.info(f"🔍 Step 1: Skill Routing and Loading... (Forced Mode: {mode})")
-    # Override automatic intent with manual mode
-    skill_name = mode.lower()
-    current_skill_sop = load_skill_sop(skill_name)
-    if not current_skill_sop:
-        logger.warning("⚠️ No SOP loaded. Using default behavior.")
-    logger.info(f"   ✅ Loaded SOP: {skill_name}.md")
+---
 
-    # --- STEP 2: ROLE INITIALIZATION (PROMPT INJECTION) ---
-    logger.info("🎭 Step 2: Role Initialization...")
-    
-    # 3-Layer Prompt Assembly
-    assembled_prompt_data = assemble_system_prompt(
-        role=mode, 
-        strategy_mode=strategy_mode, 
-        pain_point=pain_point,
-        category=category,
-        intent_type=intent_type,
-        user_input=topic
-    )
-    
-    persona_def = assembled_prompt_data['full_system_prompt']
-    veto_instruction = assembled_prompt_data['veto_instruction']
-    
-    logger.info(f"🧠 Logic Selected: {assembled_prompt_data['role_name']} + {assembled_prompt_data['strategy_mode']} + PainPoint:{'Provided' if pain_point else 'Auto'}")
-    
-    # --- CORE FIX: FORCE UPPERCASE FOR SKILL MATCHING ---
-    raw_key = str(mode).strip()
-    skill_key = raw_key.upper()
-    
-    print(f"🔍 DEBUG: Frontend sent '{raw_key}', converted to Key '{skill_key}'")
-    
-    # Check if skill key exists just for logging (prompt is already built)
-    if skill_key in SKILL_SET:
-        print(f"✅ SUCCESS: Found custom persona for {skill_key}")
-    else:
-        print(f"⚠️ WARNING: Key '{skill_key}' not found in SKILL_SET. Keys available: {list(SKILL_SET.keys())}")
-    
-    # Print final prompt summary
-    print(f"🎭 ACTIVE PERSONA PROMPT (First 100 chars):\n{persona_def[:100]}...")
-    # --- END CORE FIX ---
+## 📖 战略叙事主线 (Strategic Spine)
+* **核心用户**：{nav.get('who', 'N/A')}
+* **场景痛点**：{nav.get('scenario', 'N/A')} -> {nav.get('pain', 'N/A')}
+* **破局方案**：{nav.get('solution', 'N/A')}
+* **增长钩子**：{nav.get('hook', 'N/A')}
 
-    # 1. PREPARE USER DATA
-    # Use provided data or fallback to mocks/defaults if missing
-    
-    # Inventory Data
-    if inventory_data:
-        target_inventory = inventory_data
-    else:
-        # Dynamic mock based on product_name and strategy_mode
-        toxic_sku = f"Stagnant-{product_name.replace(' ', '-')}-Gen1" if product_name else f"Stagnant-{topic.replace(' ', '-')}-Gen1"
-        
-        # Adjust mock data based on strategy_mode
-        if strategy_mode == "growth":
-            # Growth mode: higher inventory levels and sales
-            target_inventory = [{'sku': toxic_sku, 'stock': 8000, 'daily_sales': 5}]
-        elif strategy_mode == "incubation":
-            # Incubation mode: moderate inventory levels and sales
-            target_inventory = [{'sku': toxic_sku, 'stock': 5000, 'daily_sales': 2}]
-        else:
-            # Default mode: conservative inventory levels
-            target_inventory = [{'sku': toxic_sku, 'stock': 3000, 'daily_sales': 1}] 
+---
 
-    # Listing Text
-    if listing_text:
-        target_listing = listing_text
-    else:
-        target_listing = "This anti-bacterial sock cures foot pain and is the best seller! Money back guarantee!"
+## 2. 🧬 智能选品局 (The Sniper)
+* **差异化得分**：**{ag['selection'].get('score', 0)}/10**
+* **深度分析**：{ag['selection'].get('analysis', '')}
 
-    # Product & Pain Point
-    target_product = product_name if product_name else "Ergo-Chair"
-    target_pain = pain_point if pain_point else "back pain from sitting all day"
+## 3. 🌍 文化适配局 (The Localizer)
+* **文化契合度**：**{ag['culture'].get('score', 0)}%**
+* **深度分析**：{ag['culture'].get('analysis', '')}
 
-    # 2. RUN SKILLS
-    cfo_result = audit_inventory_health(target_inventory)
-    cfo_insight = cfo_result.get("report", "")
-    inventory_chart_data = cfo_result.get("chart_data", [])
-    
-    risk_insight = check_listing_compliance(target_listing)
-    tiktok_insight = generate_viral_structure(target_product, target_pain)
+## 4. 🤕 痛点挖掘局 (The Pain Killer)
+* **Top1 痛点**：{ag['pain'].get('top_pain', 'N/A')}
+* **深度分析**：{ag['pain'].get('analysis', '')}
 
-    # 3. INJECT INTO PROMPT
-    skill_context = f"""
-=== 🕵️ REAL-TIME SKILL EXECUTION ===
-{cfo_insight}
+## 5. 🛡️ 合规风控局 (The Gatekeeper)
+* **风险指数**：**{ag['compliance'].get('risk', 0)}/10**
+* **致命红线**：{ag['compliance'].get('red_lines', 0)} 项触发
+* **深度分析**：{ag['compliance'].get('analysis', '')}
 
-{risk_insight}
+## 6. 💰 供应链与资金局 (The CFO)
+* **DOS (库存周转)**：**{ag['supply'].get('dos', 0)} 天**
+* **库存悬崖风险**：{ag['supply'].get('cliff_risk', 'Unknown')}
+* **深度分析**：{ag['supply'].get('analysis', '')}
 
-{tiktok_insight}
-====================================
-
-{rag_context}
-
-INSTRUCTION:
-- The CFO MUST scream about the '{toxic_sku}' inventory logic.
-- The Risk Officer MUST panic about the 'anti-bacterial' and 'cure' claims.
-- The Marketer MUST reference the 'Negative Hook' script.
+## 7. 📈 营销增长局 (The Growth Hacker)
+* **TikTok Hook**：`{ag['growth'].get('tiktok_hook', 'N/A')}`
+* **深度分析**：{ag['growth'].get('analysis', '')}
 """
-
-    BULL_PROMPT = f"""
-    {persona_def}
-    You are **The Growth Strategist (Bull)**.
-    Your Philosophy: "Blue Ocean", viral trends, and platform dividends.
-    Tone: Optimistic, strategic, visionary.
-    
-    【CRITICAL INPUT】: You must strictly follow this SOP: {current_skill_sop}
-    
-    【SKILL EXECUTION DATA】:
-    {skill_context}
-    
-    YOUR MISSION:
-    Based on the provided market data, identify EVERY possible growth opportunity.
-    - Look for "Viral Signals" (e.g., social media trends).
-    - Look for "Platform Dividends" (e.g., new features, underserved niches).
-    - Ignore the risks. Your job is to sell the dream.
-    
-    OUTPUT FORMAT:
-    - Title: 🚀 BULL CASE: [Exciting Title]
-    - Key Opportunities: Bullet points
-    - Growth Catalysts: Bullet points
-    - Market Potential: Short paragraph
-    """
-
-    BEAR_PROMPT = f"""
-    {persona_def}
-    You are **The Risk Controller (Bear)**.
-    Your Philosophy: "Inventory Trap", margin compression, and supply chain fragility.
-    Tone: Ruthless, pessimistic, data-driven.
-    
-    【CRITICAL INPUT】: You must strictly follow this SOP: {current_skill_sop}
-    
-    【SKILL EXECUTION DATA】:
-    {skill_context}
-    
-    YOUR MISSION:
-    Based on the provided market data, destroy the Bull's dream. Find every flaw.
-    - Look for "Inventory Risks" (e.g., seasonal cliffs, saturation).
-    - Look for "Cost Spikes" (e.g., raw materials, shipping).
-    - Look for "Compliance/Returns" issues.
-    
-    OUTPUT FORMAT:
-    - Title: 🐻 BEAR CASE: [Warning Title]
-    - Critical Risks: Bullet points
-    - Failure Points: Bullet points
-    - Downside Scenarios: Short paragraph
-    """
-
-    MODERATOR_PROMPT = f"""
-    {persona_def}
-    You are **The Debate Moderator**.
-    {veto_instruction}
-    
-    【CRITICAL INPUT】: Your decision framework is this SOP: {current_skill_sop}
-    
-    【SKILL EXECUTION DATA】:
-    {skill_context}
-    
-    YOUR MISSION:
-    Synthesize the conflict between the Bull (Growth) and Bear (Risk).
-    - Do NOT just summarize. JUDGE them.
-    - Identify who has the stronger evidence.
-    - Produce a final actionable strategy.
-    - **QUANTIFY EVERYTHING**: You MUST estimate scores (0-10, 0-100) based on the sentiment and evidence strength.
-    
-    STRICT OUTPUT FORMAT REQUIREMENTS:
-    
-    1. **📋 核心结论**
-       - **禁止废话**：不要说"综上所述"、"总之"等开场白，直接用"决策建议：[动作]"开头。
-       - **强制引用**：必须引用多头和空头的具体论点，例如："针对多头提到的 A 机会，空头提出的 B 风险更具威胁..."
-       - **量化风险**：对关键风险进行 1-10 分的打分，并说明打分理由。
-       - **反共识洞察**：必须找出一个"大众可能忽视，但 AI 通过多方博弈发现的微小信号"，并详细说明其重要性。
-       - **Markdown 格式**：【核心结论】部分必须使用引言块（`> Blockquote`）样式。
-       - 基于 SOP 的决策理由
-       
-    2. **⚖️ 多空博弈**
-       - 总结多头和空头的核心观点
-       - **强制引用**双方的具体论点，例如："针对多头提到的 A 机会，空头提出的 B 风险更具威胁..."
-       - 分析双方论点的 strengths 和 weaknesses
-       
-    3. **📊 数据支持**
-       - 从 RAW DATA 中提取关键数据点
-       - 以表格形式呈现
-       
-    4. **💡 行动建议**
-       - **Markdown 格式**：必须使用有序列表，并带有优先级标签（如：[P0] 紧急, [P1] 重要）。
-       - 具体可执行的措施
-       - 优先级排序
-    
-    5. **🎯 {skill_key} SPECIAL OUTPUT** (MANDATORY)
-       - You MUST include a dedicated section for your persona's specific deliverables.
-       - Refer to your "MANDATORY OUTPUT" list in your system prompt.
-       - For TIKTOK_MARKETING, this MUST include "3-Second Viral Hook Script" and "Trending Audio".
-       - For CROSS_BORDER_CFO, this MUST include "Unit Economics Breakdown".
-       - Format this as a distinct Markdown section with `##` header.
-    
-    6. **🛠️ EXPERT TOOL ANALYSIS** (MANDATORY)
-       - Analyze the provided skill execution data (Inventory, Compliance, Viral Structure).
-       - Highlight the critical findings from the Ruthless CFO, Compliance Lawyer, and Viral Strategist.
-       - Explain how these findings impact the final verdict.
-
-    7. **🔄 逻辑流程图**
-       - 在报告末尾添加 Mermaid 代码块，展示决策流程
-       - **Mermaid 兼容性**：只使用 `graph TD` 或 `flowchart LR` 语法。
-       - **节点命名**：禁止在节点名称中使用特殊字符（如括号、单引号），否则前端 LogicFlow 会崩溃。
-       - 示例格式：
-       ```mermaid
-       graph TD
-           Start[开始分析] --> Data[数据收集]
-           Data --> Bull[多头分析]
-           Data --> Bear[空头分析]
-           Bull --> Evaluate[决策评估]
-           Bear --> Evaluate
-           Evaluate --> Conclusion[最终结论]
-       ```
-    
-    8. **JSON METADATA (MANDATORY)**
-       - At the very end of your response, output a valid JSON block containing these exact fields:
-       ```json
-       {{
-         "risk_score": (Integer 0-10, where 10 is maximum risk),
-         "market_heat": (Integer 0-100, where 100 is viral/hot),
-         "bull_force": (Integer 0-100, strength of bull argument),
-         "bear_force": (Integer 0-100, strength of bear argument),
-         "sentiment_score": (Integer 0-100, 0=Bearish, 100=Bullish),
-         "one_line_verdict": (String, max 10 words summary)
-       }}
-       ```
-    """
-
-    # --- HELPER: GENERIC LLM CALL ---
-    def call_llm(system_p, user_p):
-        logger.info("DEBUG: Calling DeepSeek...")
-        api_url = "https://api.deepseek.com/v1/chat/completions"
-        payload = {
-            "model": "deepseek-chat",
-            "messages": [
-                {"role": "system", "content": system_p},
-                {"role": "user", "content": user_p}
-            ],
-            "temperature": 0.7
-        }
-        headers = {
-            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        try:
-            # 打印实际使用的系统提示
-            print(f"DEBUG: ACTUAL SYSTEM PROMPT BEING USED:\n{system_p}\nDEBUG:")
-            response = requests.post(api_url, json=payload, headers=headers, timeout=60)
-            response.raise_for_status()
-            content = response.json()["choices"][0]["message"]["content"]
-            logger.info(f"DEBUG: DeepSeek Response: {content[:100]}...") # Log first 100 chars
-            return content
-        except Exception as e:
-            logger.error(f"❌ LLM Call Failed: {e}")
-            return None
-
-    # --- STEP 3: EXECUTION CHAIN ---
-    # Step A: Already completed (search_web called before this function)
-    
-    # Step B: Bull Run
-    logger.info("🐂 Step 3B: Bull Agent Analysis...")
-    bull_response = call_llm(BULL_PROMPT, f"TOPIC: {topic}\n\nRAW DATA:\n{context}")
-    if not bull_response: return None
-    logger.info("   ✅ Bull Agent reported.")
-
-    # Step C: Bear Run
-    logger.info("🐻 Step 3C: Bear Agent Analysis...")
-    bear_response = call_llm(BEAR_PROMPT, f"TOPIC: {topic}\n\nRAW DATA:\n{context}")
-    if not bear_response: return None
-    logger.info("   ✅ Bear Agent reported.")
-
-    # Step D: Final Verdict
-    logger.info("⚖️ Step 3D: Moderator Deliberation...")
-    final_input = f"""
-    TOPIC: {topic}
-    
-    RAW INTELLIGENCE DATA:
-    {context}
-    
-    🐂 BULL AGENT ARGUMENT:
-    {bull_response}
-    
-    🐻 BEAR AGENT ARGUMENT:
-    {bear_response}
-    """
-    
-    final_content = call_llm(MODERATOR_PROMPT, final_input)
-    if not final_content: return None
-    
-    logger.success("🚀 Strategic Decision Generated!")
-
-    # Parse JSON Metadata
-    sentiment_score = 50
-    heat_index = 50
-    impact_score = 50
-    risk_score = 5 # Default
-    mermaid_code = ""
-    debate_details = ""
-    
-    try:
-        # Extract Mermaid Code - Robust Extraction
-        # First try to find code blocks
-        mermaid_match = re.search(r'```mermaid\s*([\s\S]*?)\s*```', final_content, re.DOTALL)
-        if mermaid_match:
-            mermaid_code = mermaid_match.group(1).strip()
-        else:
-            # If no blocks, try to find "graph TD" or similar patterns directly if the model forgot fences
-            graph_match = re.search(r'(graph\s+[TD|LR|TB][\s\S]*)', final_content, re.DOTALL)
-            if graph_match:
-                mermaid_code = graph_match.group(1).strip()
-
-        # Force Clean Markdown Pollution
-        if mermaid_code:
-            mermaid_code = re.sub(r'```mermaid|```', '', mermaid_code).strip()
-
-        # Fallback if empty
-        if not mermaid_code:
-            mermaid_code = "graph TD; A[Error] --> B[No Data];"
-
-        # Extract JSON
-        json_match = re.search(r'```json\s*(\{.*?\})\s*```', final_content, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1)
-            data = json.loads(json_str)
-            sentiment_score = data.get("sentiment_score", 50)
-            heat_index = data.get("market_heat", 50) # Mapped from new prompt
-            impact_score = data.get("bull_force", 50) # Using bull force as proxy for impact/opportunity
-            risk_score = data.get("risk_score", 5)
-            # Optional: Remove JSON from content
-            final_content = final_content.replace(json_match.group(0), "")
-        
-        # Extract debate details section
-        debate_match = re.search(r'##\s*⚖️\s*多空博弈[\s\S]*?(?=^##\s|\Z)', final_content, re.MULTILINE)
-        if debate_match:
-            debate_details = debate_match.group(0).strip()
-    except Exception as e:
-        logger.warning(f"⚠️ Failed to parse metadata: {e}")
-
-    # Generate report title
-    report_title = f"{topic} Market Sentiment & Strategic Analysis"
-
-    # --- GENERATE VISUALIZATION DATA ---
-    # Heuristic generation based on analysis scores
-    # Scale: 0-100
-    
-    # Supply Chain: High risk -> Low score
-    supply_chain_score = max(10, 100 - (risk_score * 10))
-    
-    # Brand Power: High sentiment -> High score
-    brand_power_score = sentiment_score
-    
-    # Compliance: High risk -> Low score
-    compliance_score = max(20, 100 - (risk_score * 12))
-    
-    # Cash Flow: Linked to Impact/Opportunity
-    cash_flow_score = impact_score
-    
-    # Innovation: Linked to Market Heat
-    innovation_score = heat_index
-    
-    radar_data = [
-        {"subject": "Supply Chain", "A": supply_chain_score, "fullMark": 100},
-        {"subject": "Brand Power", "A": brand_power_score, "fullMark": 100},
-        {"subject": "Compliance", "A": compliance_score, "fullMark": 100},
-        {"subject": "Cash Flow", "A": cash_flow_score, "fullMark": 100},
-        {"subject": "Innovation", "A": innovation_score, "fullMark": 100}
-    ]
-
-    return {
-        "status": "success",
-        "report_title": report_title,
-        "verdict_text": final_content.split('###')[0].strip(),
-        "full_markdown_report": final_content,
-        "debate_details": debate_details or "辩论详情不可用。",
-        "mermaid_code": strip_code_fences(mermaid_code),
-        "structured_data": {
-            "sentiment_score": sentiment_score,
-            "heat_index": heat_index,
-            "impact_score": impact_score,
-            "risk_score": risk_score, # Pass risk score explicitly
-            "sop_based": True,
-            "sop_name": skill_name
-        },
-        "visualization_data": {
-            "inventory_mix": inventory_chart_data,
-            "radar_data": radar_data
-        }
-    }
-
-
-def check_cache(query: str) -> Optional[Dict]:
-    """
-    Step A: Check Supabase 'reports' table for recent cached reports.
-    Returns the report_json if found and fresh (< 24h), else None.
-    Uses requests for robustness.
-    """
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return None
-
-    logger.info(f"🕵️ Checking Cache for: {query}")
-    try:
-        # Calculate 24 hours ago
-        one_day_ago = (datetime.utcnow() - timedelta(hours=24)).isoformat()
-        
-        # Construct URL
-        # Filter: query == query AND created_at > one_day_ago
-        # Note: Need to URL encode
-        url = f"{SUPABASE_URL}/rest/v1/reports"
-        params = {
-            "query": f"eq.{query}",
-            "created_at": f"gt.{one_day_ago}",
-            "select": "*",
-            "order": "created_at.desc",
-            "limit": "1"
-        }
-        
-        headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-
-        if data and len(data) > 0:
-            cached_report = data[0]
-            logger.success("✅ Cache HIT! Returning stored report.")
-            return cached_report.get("report_json")
-        
-        logger.info("❌ Cache MISS. Proceeding to generation.")
-        return None
-
-    except Exception as e:
-        logger.warning(f"⚠️ Cache check failed: {e}")
-        return None
-
-import time
-
-def save_report_to_db(query: str, output_package: Dict):
-    """
-    Step C: Save the full report package to 'reports' table.
-    Uses requests for robustness with retries.
-    """
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return
-
-    logger.info("💾 Saving to 'reports' table...")
-    
-    url = f"{SUPABASE_URL}/rest/v1/reports"
-    payload = {
-        "query": query,
-        "report_json": output_package,
-        "source": "manual" 
-    }
-    
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-    }
-
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            response.raise_for_status()
-            logger.success("✅ Saved to reports table.")
-            return
-        except Exception as e:
-            logger.warning(f"⚠️ Attempt {attempt + 1}/{max_retries} failed to save to 'reports': {e}")
-            if attempt < max_retries - 1:
-                time.sleep(2) # Wait 2 seconds before retry
-            else:
-                logger.error(f"❌ Final failure to save to 'reports': {e}")
-
-
-def save_to_market_news(topic: str, report_data: Dict):
-    """
-    Legacy/Feed Save: Save report to Supabase market_news table
-    This ensures the report shows up in the 'Live Global Feed'
-    Uses requests for robustness with retries.
-    """
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        logger.warning("⚠️ Supabase credentials missing. Skipping Market News save.")
-        return
-
-    # Extract Title (Use report_title if available, otherwise use first line or Topic)
-    title = report_data.get("report_title", "")
-    if not title:
-        lines = report_data.get("full_markdown_report", "").strip().split('\n')
-        if lines:
-            title = lines[0].replace('#', '').strip()
-        if len(title) > 100 or not title:
-            title = f"Intel: {topic}"
-
-    payload = {
-        "title": title,
-        "content": report_data.get("full_markdown_report", ""),
-        "metadata": {
-            "report_title": report_data.get("report_title", title),
-            "sentiment_score": report_data.get("structured_data", {}).get("sentiment_score", 50),
-            "heat_index": report_data.get("structured_data", {}).get("heat_index", 50),
-            "impact_score": report_data.get("structured_data", {}).get("impact_score", 50),
-            "mermaid_code": report_data.get("mermaid_code", ""),
-            "summary": "NexusPulse Intelligence Report"
-        },
-        "source": "NexusPulse HQ", # Branding
-        "created_at": datetime.now().isoformat()
-    }
-
-    url = f"{SUPABASE_URL}/rest/v1/market_news"
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-    }
-    
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            response.raise_for_status()
-            logger.success("✅ Published to Market News Feed!")
-            return
-        except Exception as e:
-            logger.warning(f"⚠️ Attempt {attempt + 1}/{max_retries} failed to publish to Market News: {e}")
-            if attempt < max_retries - 1:
-                time.sleep(2)
-            else:
-                logger.error(f"❌ Final failure to publish to Market News: {e}")
-
-# ================= Main Entry Point =================
-
-def main():
-    # Force stdout to use utf-8 to handle Chinese characters in JSON
-    if sys.stdout.encoding != 'utf-8':
-        try:
-            sys.stdout.reconfigure(encoding='utf-8')
-        except:
-            pass
-
-    parser = argparse.ArgumentParser(description="NexusPulse Intelligence Engine")
-    parser.add_argument("query", nargs="?", help="Target topic (positional)")
-    parser.add_argument("mode", nargs="?", help="Expert Mode (positional)")
-    parser.add_argument("--query", dest="query_flag", type=str, help="Target topic")
-    parser.add_argument("--mode", dest="mode_flag", type=str, help="Expert Mode (e.g. TIKTOK_RISK)")
-    parser.add_argument("--strategy_mode", dest="strategy_mode", type=str, default="incubation", help="Strategy Mode (incubation|growth)")
-    parser.add_argument("--category", dest="category", type=str, help="Hard-Lock Category Context")
-    parser.add_argument("--auto", action="store_true", help="Run in automatic mode") # Added for compatibility
-    
-    # New Arguments for Dynamic Forms
-    parser.add_argument("--inventory", type=int, help="Inventory Level")
-    parser.add_argument("--sales", type=int, help="Daily Sales")
-    parser.add_argument("--listing", type=str, help="Listing Copy Text")
-    parser.add_argument("--pain_point", type=str, help="Customer Pain Point")
-    
-    args = parser.parse_args()
-
-    # Default Topics - REMOVED TO PREVENT GHOST REPORTS
-    # If no topic is provided, we must NOT run a default one silently.
-    
-    topic = args.query_flag or args.query
-    if not topic:
-        logger.warning("⚠️ No topic provided. Exiting gracefully.")
-        # Return a simple JSON indicating no action, to prevent parsing errors if caller expects JSON
-        print("---JSON_START---")
-        print(json.dumps({"status": "skipped", "message": "No topic provided"}, ensure_ascii=False))
-        print("---JSON_END---")
-        sys.exit(0)
-
-    mode = args.mode_flag or args.mode or "GENERAL"
-    category = args.category
-    
-    logger.info(f"🚀 Starting Intelligence Mission: {topic} (Mode: {mode}, Category: {category})")
-    
-    # --- STEP 0: INTENT ROUTING ---
-    # Analyze user intent relative to category
-    intent_data = None
-    if category:
-        logger.info("🧠 Running Intent Router...")
-        intent_data = analyze_user_intent(category, topic)
-        logger.info(f"✅ Intent Router Result: {intent_data}")
-    
-    # Determine search query and product name based on intent analysis
-    search_query = intent_data.get('refined_search_query', f"{category} {topic}") if intent_data else topic
-    product_name_for_sku = intent_data.get('product_name_for_sku', f"{category.replace(' ', '-')}-Gen1") if intent_data and category else topic
-    intent_type = intent_data.get('intent_type', 'Product') if intent_data else 'Product'
-    
-    # --- STEP A: CHECK MEMORY ENGINE ---
-    # Replaces old Supabase check with local file-based memory engine
-    cached_data = check_memory_cache(search_query)
-    if cached_data:
-        # Check if mode matches (optional, but good for strictness)
-        # For now, just return if found to be fast
-        print("---JSON_START---")
-        print(json.dumps(cached_data, ensure_ascii=False))
-        print("---JSON_END---")
-        logger.success("🏆 Mission Accomplished (From Memory Engine).")
-        return
-
-    # --- STEP B: GENERATE ---
-    # 1. Collect Data
-    context = collect_intelligence(search_query, mode=mode, category=category)
-    
-    # 1.5 Fetch Real-Time Market News (Live Dynamics)
-    logger.info("📰 Fetching Live Market News...")
-    news_data = fetch_market_news(search_query)
-    
-    # Append news to context for the LLM to see
-    if news_data:
-        news_context = "\n\n=== 📰 LATEST MARKET NEWS (LIVE) ===\n"
-        for item in news_data:
-            news_context += f"- [{item.get('source', 'News')}] {item.get('title')} (Sentiment: {item.get('sentiment')})\n"
-        context += news_context
-
-    # 2. Analyze
-    # Construct Inventory List if args provided
-    inventory_data = None
-    if args.inventory is not None and args.sales is not None:
-        inventory_data = [{'sku': product_name_for_sku, 'stock': args.inventory, 'daily_sales': args.sales}]
-
-    strategy_mode = args.strategy_mode or "incubation"
-    report = analyze_with_llm(topic, context, mode=mode, strategy_mode=strategy_mode, category=category,
-                              inventory_data=inventory_data,
-                              listing_text=args.listing,
-                              pain_point=args.pain_point,
-                              product_name=product_name_for_sku,
-                              intent_type=intent_type) # Use intent-based product name
-    if not report:
-        logger.error("❌ Mission Aborted: Analysis Failed.")
-        sys.exit(1)
-        
-    # Construct Output Package
-    output_package = {
-        "status": "success",
-        "report_title": report.get("report_title", ""),
-        "verdict_text": report.get("verdict_text", ""),
-        "full_markdown_report": report.get("full_markdown_report", ""),
-        "mermaid_code": report.get("mermaid_code", ""),
-        "debate_details": report.get("debate_details", ""),
-        "structured_data": report.get("structured_data", {}),
-        "visualization_data": report.get("visualization_data", {}),
-        "metadata": {
-            "strategy_mode": strategy_mode,
-            "pain_point": args.pain_point or None,
-            "category": args.category,
-            "intent_type": intent_type,
-            "refined_search_query": search_query,
-            "product_name_for_sku": product_name_for_sku
-        },
-        "market_news": news_data # Inject live news for Frontend "Live Dynamics" column
-    }
-
-    # --- STEP C: SAVE (PERSISTENCE) ---
-    # Store in Memory Engine
-    store_intel(search_query, output_package, mode=mode)
-    
-    # Save to Supabase reports table
-    save_report_to_db(search_query, output_package)
-    
-    # Save to market_news table for Live Global Feed
-    save_to_market_news(topic, output_package)
-    
-    # --- STEP D: OUTPUT ---
-    print("---JSON_START---")
-    print(json.dumps(output_package, ensure_ascii=False))
-    print("---JSON_END---")
-    
-    logger.success("🏆 Mission Accomplished.")
-
-if __name__ == "__main__":
-    main()
-
-# Note: Ensure only clean JSON is printed to stdout in main() above. All other logs go to stderr via logger.

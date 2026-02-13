@@ -8,3 +8,8 @@ jinja2
 supabase
 tavily-python
 requests
+flask
+flask-cors
+fastapi
+uvicorn
+supabase

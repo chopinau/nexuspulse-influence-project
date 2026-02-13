@@ -1,380 +1,174 @@
-"use client"
+"use client";
+import React, { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import { PersonaInput } from "@/components/PersonaInput";
+import StrategicDashboard from "@/components/StrategicDashboard";
+import StrategicBlueprint from "@/components/StrategicBlueprint";
+import DepartmentFeed from "@/components/DepartmentFeed"; // Import the new component
+import { LayoutDashboard, Map, Activity, FileText } from 'lucide-react';
 
-import { useState, useMemo } from "react"
-import { Search, Activity, TrendingUp, DollarSign, ShieldAlert, Zap, Globe } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
-import { ProgressBar } from "@tremor/react"
-import RiskGauge from "@/components/RiskGauge"
-import LogicFlow from "@/components/LogicFlow"
-import LiveGlobalFeed from "@/components/LiveGlobalFeed"
-import { TrendChart } from "@/components/trend-chart"
-import { CategorySelector } from "@/components/CategorySelector"
-import { PersonaInput } from "@/components/PersonaInput"
-// GridBackground component defined internally
-import { toast } from "sonner"
+export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'blueprint'>('dashboard');
+  const [activeLeftTab, setActiveLeftTab] = useState<'report' | 'feed'>('feed'); // New State for Left Panel
+  const [status, setStatus] = useState("");
+  const [report, setReport] = useState("");
+  const [vizData, setVizData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showBlueprintModal, setShowBlueprintModal] = useState(false); // For Modal
 
-// --- Reused Components (Should be moved to components/ui/ in real refactor) ---
-
-const IronCard = ({ children, className = "", title, icon: Icon }: { children: React.ReactNode, className?: string, title?: string, icon?: any }) => (
-  <div className={`bg-black/40 border border-white/10 backdrop-blur-md rounded-xl overflow-hidden relative group ${className}`}>
-    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-cyan-500/50 rounded-tl-md" />
-    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-cyan-500/50 rounded-tr-md" />
-    <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-cyan-500/50 rounded-bl-md" />
-    <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-cyan-500/50 rounded-br-md" />
-    
-    {title && (
-      <div className="px-4 py-3 border-b border-white/5 bg-white/5 flex items-center gap-2">
-        {Icon && <Icon className="w-4 h-4 text-cyan-400" />}
-        <h3 className="text-sm font-bold text-cyan-100 uppercase tracking-wider">{title}</h3>
-      </div>
-    )}
-    <div className="p-4">
-      {children}
-    </div>
-  </div>
-);
-
-// Helper functions
-const extractRiskScore = (text: string): number => {
-  if (!text) return 0;
-  const match = text.match(/(?:Risk Score|风险评分|风险指数)[：:]?\s*(\d+)\/10/i) || text.match(/(\d+)\/10/);
-  return match ? parseInt(match[1]) : 5;
-};
-
-const getSentimentColor = (score: number) => {
-    if (score >= 60) return "emerald";
-    if (score <= 40) return "rose";
-    return "blue";
-};
-
-export default function DashboardPage() {
-  const [loading, setLoading] = useState(false);
-  const [loadingText, setLoadingText] = useState("");
-  const [reportData, setReportData] = useState<any>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  // State for PersonaInput compatibility
   const [mode, setMode] = useState("GENERAL");
   const [strategyMode, setStrategyMode] = useState<'incubation' | 'growth'>('incubation');
 
-  // GridBackground component moved inside DashboardPage
-  const GridBackground = () => (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-      {/* Base gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black via-zinc-950 to-black" />
-      
-      {/* Animated gradient orbs */}
-      <motion.div
-        className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full bg-cyan-500/5 blur-3xl"
-        animate={{
-          x: [0, 100, 0],
-          y: [0, 50, 0],
-          scale: [1, 1.1, 1],
-        }}
-        transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute bottom-0 right-1/4 w-[600px] h-[600px] rounded-full bg-purple-500/5 blur-3xl"
-        animate={{
-          x: [0, -100, 0],
-          y: [0, -50, 0],
-          scale: [1, 1.2, 1],
-        }}
-        transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-      />
-      
-      {/* Grid pattern */}
-      <div
-        className="absolute inset-0 opacity-[0.05]"
-        style={{
-          backgroundImage: `
-            linear-gradient(to right, #22d3ee 1px, transparent 1px),
-            linear-gradient(to bottom, #22d3ee 1px, transparent 1px)
-          `,
-          backgroundSize: "40px 40px"
-        }}
-      />
-      
-      {/* Radial overlay for depth */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: "radial-gradient(ellipse at center, transparent 0%, #000 80%)"
-        }}
-      />
-      
-      {/* Scan line effect */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-20"
-        style={{
-          background: "linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.5) 50%)",
-          backgroundSize: "100% 4px"
-        }}
-      />
-    </div>
-  );
-
-  // Inject High-Growth Markets Data (Mock for SaaS Feel)
-  const growthMarkets = [
-    { name: "AI Wearables", growth: "+450%", risk: "High" },
-    { name: "Sustainable Swimwear", growth: "+120%", risk: "Med" },
-    { name: "Pet Tech", growth: "+85%", risk: "Low" }
-  ];
-
-  const riskScore = useMemo(() => {
-    const v = reportData?.structured_data?.risk_score;
-    if (typeof v === "number") return v;
-    if (!reportData?.verdict_text) return 0;
-    return extractRiskScore(reportData.verdict_text);
-  }, [reportData]);
-
-  const handleGenerate = async (inputData: any) => {
-    // Input validation handled in PersonaInput, but check topic just in case
-    if (!inputData.topic) return;
-
-    setLoading(true);
-    setReportData(null);
-    
-    const steps = [
-      "🔍 INITIATING SCAN: Target Identified...",
-      "📡 INTERCEPTING SIGNALS: Processing Global Feeds...",
-      "🧠 NEURAL LINK ESTABLISHED: Analyzing Patterns...",
-      "🛡️ STRATEGIC PROTOCOLS: Generating Verdict..."
-    ];
-
-    let stepIndex = 0;
-    setLoadingText(steps[0]);
-    
-    const MIN_STEP_TIME = 1500; 
-    let stepTimer: NodeJS.Timeout;
-
-    const advanceStep = () => {
-        stepIndex++;
-        if (stepIndex < steps.length) {
-            setLoadingText(steps[stepIndex]);
-        }
-    };
-
-    stepTimer = setInterval(advanceStep, MIN_STEP_TIME);
+  const handleExecute = async (input: any) => {
+    setIsLoading(true);
+    setStatus("📡 Initializing Global Scan...");
+    setActiveTab('dashboard'); 
+    setActiveLeftTab('feed'); // Default to Feed view on new search
+    setReport(""); setVizData(null);
 
     try {
-        const res = await fetch('/api/agent-forum', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(inputData) 
-        });
-        
-        const data = await res.json();
-        
-        if (data.error) {
-            console.error("Agent Error:", data.error);
-            setLoadingText("❌ SYSTEM FAILURE: " + data.error);
-            toast.error("Analysis Failed: " + data.error);
-        } else {
-            setReportData(data);
-            toast.success("Intelligence Report Generated Successfully");
-        }
+      // Step 1: Brainstorm
+      const bRes = await fetch("http://localhost:8000/api/brainstorm", {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ product: input.topic, persona: "General" })
+      });
+      if (!bRes.ok) throw new Error("Brainstorm API failed");
+      const bData = await bRes.json();
+      
+      // Step 2: Analyze
+      setStatus(`🎯 Locked Target: ${bData.focus_topic}... Analyzing...`);
+      const aRes = await fetch("http://localhost:8000/api/analyze", {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ 
+            product: input.topic, 
+            persona: "General", 
+            focus_topic: bData.focus_topic,
+            market: input.market // Pass market from input
+          })
+      });
+      if (!aRes.ok) throw new Error("Analysis API failed");
+      const aData = await aRes.json();
 
-    } catch (e) {
-        console.error("Network Error:", e);
-        setLoadingText("❌ NETWORK ERROR");
-        toast.error("Network Error: Failed to connect to intelligence grid");
+      setReport(aData.markdown_report);
+      setVizData(aData.structured_data);
+      setStatus("✅ Mission Complete");
+
+    } catch (e: any) {
+      console.error(e);
+      setStatus("❌ Error: " + e.message);
     } finally {
-        try {
-            clearInterval(stepTimer);
-        } catch (e) { }
-        setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="p-6 h-full flex flex-col gap-6 relative bg-black text-white">
-      {/* Main Grid */}
-      <div className="grid grid-cols-12 gap-6 relative z-10 flex-1 min-h-0">
+    <div className="flex flex-col h-screen bg-[#050505] text-white overflow-hidden font-sans selection:bg-cyan-500/30">
+      
+      {/* 1. Top Navigation Bar */}
+      <div className="h-14 border-b border-gray-800 bg-[#0a0f1c] flex items-center justify-between px-6 z-20 shrink-0">
+        <div className="flex items-center gap-2 font-bold text-xl tracking-tighter select-none">
+          <span className="text-cyan-500">NEXUS</span><span className="text-white">PULSE</span>
+          <span className="text-[10px] bg-cyan-900/30 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20 font-mono">V3.0</span>
+        </div>
         
-        {/* LEFT COLUMN: HARD DATA (Span 3) */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
-          <IronCard title="Mission Status" icon={Activity}>
-             <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                   <span className="text-xs text-gray-400">System Load</span>
-                   <span className="text-xs font-mono text-cyan-400">42%</span>
-                </div>
-                <ProgressBar value={42} color="cyan" className="mt-2" />
-                <div className="flex justify-between items-center mt-2">
-                   <span className="text-xs text-gray-400">Active Agents</span>
-                   <span className="text-xs font-mono text-green-400">3 ONLINE</span>
-                </div>
-             </div>
-          </IronCard>
-
-          <IronCard title="Strategic Risk Level" icon={ShieldAlert} className="flex-1 min-h-[300px]">
-             {reportData ? (
-                <div className="flex flex-col items-center justify-center h-full py-6 relative">
-                   <RiskGauge score={riskScore} />
-                   
-                   <div className="mt-6 text-center space-y-2 w-full">
-                      <div className="flex justify-between text-xs px-4 border-b border-white/10 pb-2">
-                        <span className="text-gray-400">Bull Force</span>
-                        <div className="w-24 h-2 bg-gray-800 rounded-full overflow-hidden">
-                           <div className="h-full bg-green-500" style={{ width: `${reportData.structured_data?.bull_force || 50}%` }} />
-                        </div>
-                      </div>
-                      <div className="flex justify-between text-xs px-4">
-                        <span className="text-gray-400">Bear Force</span>
-                        <div className="w-24 h-2 bg-gray-800 rounded-full overflow-hidden">
-                           <div className="h-full bg-red-500" style={{ width: `${reportData.structured_data?.bear_force || 50}%` }} />
-                        </div>
-                      </div>
-                   </div>
-                </div>
-             ) : (
-                <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-                   Awaiting Target...
-                </div>
-             )}
-          </IronCard>
-
-          <IronCard title="Market Trends" icon={TrendingUp} className="flex-1 min-h-[250px]">
-             <div className="h-full w-full -m-4 p-4 flex flex-col gap-2"> 
-                {growthMarkets.map((m, i) => (
-                  <div key={i} className="flex justify-between items-center bg-white/5 p-2 rounded cursor-pointer hover:bg-white/10 transition-colors" onClick={() => setSearchQuery(m.name)}>
-                    <span className="text-xs text-gray-300">{m.name}</span>
-                    <div className="flex gap-2 text-xs">
-                      <span className="text-green-400 font-mono">{m.growth}</span>
-                      <span className={`px-1 rounded text-[10px] ${m.risk === 'High' ? 'bg-red-500/20 text-red-400' : m.risk === 'Med' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>
-                        {m.risk}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                <div className="mt-auto h-24 w-full">
-                   <TrendChart />
-                </div>
-             </div>
-          </IronCard>
+        {/* RIGHT TAB SWITCHER */}
+        <div className="flex bg-black/50 p-1 rounded-lg border border-gray-800">
+          <button 
+            onClick={() => setActiveTab('dashboard')} 
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+                activeTab === 'dashboard' 
+                ? 'bg-cyan-600 text-white shadow-[0_0_15px_rgba(8,145,178,0.5)]' 
+                : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <LayoutDashboard size={14} /> TACTICAL DASHBOARD
+          </button>
+          <button 
+            onClick={() => setShowBlueprintModal(true)} // Open Modal
+            disabled={!vizData} 
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+                'text-gray-500 hover:text-gray-300 hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed'
+            }`}
+          >
+            <Map size={14} /> STRATEGIC BLUEPRINT
+          </button>
         </div>
-
-        {/* CENTER COLUMN: MAIN STAGE (Span 6) */}
-        <div className="col-span-12 lg:col-span-6 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
-           
-           {/* Category Selector - New Dual-Track Component */}
-           <CategorySelector onSelect={(label) => setSearchQuery(label)} />
-           
-           {/* Persona-Driven Dynamic Input Form */}
-           <PersonaInput 
-             mode={mode}
-             onModeChange={setMode}
-             strategyMode={strategyMode}
-             onStrategyModeChange={setStrategyMode}
-             category={searchQuery}
-             onExecute={handleGenerate}
-             isLoading={loading}
-             loadingText={loadingText}
-           />
-
-           {/* Animated Stream Content */}
-           <AnimatePresence>
-             {reportData && (
-               <motion.div 
-                 className="flex flex-col gap-4 pb-20"
-                 initial="hidden"
-                 animate="visible"
-                 variants={{
-                   hidden: { opacity: 0 },
-                   visible: {
-                     opacity: 1,
-                     transition: {
-                       staggerChildren: 0.3
-                     }
-                   }
-                 }}
-               >
-                 {/* Verdict Card */}
-                 <motion.div variants={{
-                   hidden: { y: -20, opacity: 0 },
-                   visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 100 } }
-                 }}>
-                    <IronCard className="border-cyan-500/30 bg-cyan-950/20">
-                       <h2 className="text-xl font-bold text-cyan-400 mb-4 flex items-center gap-2 border-b border-cyan-500/20 pb-2">
-                          <ShieldAlert className="w-6 h-6" />
-                          STRATEGIC VERDICT // 战略裁决
-                       </h2>
-                       <div className="text-white text-lg leading-relaxed font-medium pl-4 border-l-4 border-cyan-500/50 py-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                          <div dangerouslySetInnerHTML={{ __html: (reportData?.verdict_text || "").replace(/\n/g, '<br/>') }} />
-                       </div>
-                    </IronCard>
-                 </motion.div>
-
-                 {/* Logic Graph */}
-                 <motion.div variants={{
-                   hidden: { opacity: 0, scale: 0.95 },
-                   visible: { opacity: 1, scale: 1, transition: { duration: 0.5 } }
-                 }} className="flex-1 min-h-[500px]">
-                    {reportData?.mermaid_code ? (
-                       <LogicFlow code={reportData.mermaid_code} />
-                    ) : (
-                       <IronCard title="Logic Flow Graph" icon={TrendingUp} className="h-full">
-                           <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-4 opacity-50 min-h-[400px]">
-                              <div className="w-16 h-16 rounded-full border-2 border-dashed border-gray-600 animate-spin-slow" />
-                              <p className="font-mono text-sm">WAITING FOR TARGET ANALYSIS...</p>
-                           </div>
-                       </IronCard>
-                    )}
-                 </motion.div>
-
-                 {/* Debate Section */}
-                 <motion.div variants={{
-                   hidden: { y: 20, opacity: 0 },
-                   visible: { y: 0, opacity: 1 }
-                 }}>
-                    <IronCard title="Agent Debate Logs" icon={Activity}>
-                       <div className="prose prose-invert prose-sm max-w-none max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                          <div dangerouslySetInnerHTML={{ __html: (reportData?.debate_details || "").replace(/\n/g, '<br/>') }} />
-                       </div>
-                    </IronCard>
-                 </motion.div>
-               </motion.div>
-             )}
-           </AnimatePresence>
+        
+        <div className="text-xs text-gray-500 font-mono flex items-center gap-2">
+           <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></div> 
+           SYSTEM ONLINE
         </div>
-
-        {/* RIGHT COLUMN: LIVE DYNAMICS (Span 3) */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
-           
-           {/* Sentiment Balance Bar */}
-           <IronCard title="Market Sentiment" icon={DollarSign}>
-              {reportData ? (
-                 <div className="space-y-4">
-                    <div className="flex justify-between items-end mb-1">
-                       <span className="text-xs font-bold text-red-400">BEARISH</span>
-                       <span className="text-xl font-bold text-white">{reportData.structured_data?.sentiment_score || 50}</span>
-                       <span className="text-xs font-bold text-green-400">BULLISH</span>
-                    </div>
-                    <ProgressBar 
-                       value={reportData.structured_data?.sentiment_score || 50} 
-                       color={getSentimentColor(reportData.structured_data?.sentiment_score || 50)} 
-                       className="h-3"
-                    />
-                    <div className="flex justify-between text-[10px] text-gray-500 font-mono">
-                       <span>EXTREME FEAR</span>
-                       <span>NEUTRAL</span>
-                       <span>EXTREME GREED</span>
-                    </div>
-                 </div>
-              ) : (
-                 <div className="h-24 flex items-center justify-center text-gray-500 text-xs">
-                    No Signal Detected
-                 </div>
-              )}
-           </IronCard>
-
-           <IronCard title="Live Dynamics" icon={Globe} className="flex-1 flex flex-col min-h-[400px]">
-              <div className="flex-1 overflow-hidden">
-                 <LiveGlobalFeed topic={searchQuery} newsItems={reportData?.market_news} />
-              </div>
-           </IronCard>
-        </div>
-
       </div>
+
+      {/* 2. Main Content Area */}
+      <div className="flex-1 flex overflow-hidden relative">
+         
+         {/* === LEFT COLUMN: Input + Feed/Report === */}
+         <div className="w-3/5 flex flex-col border-r border-gray-800 bg-[#060606]">
+            <div className="p-6 border-b border-gray-800/50 bg-[#080808]">
+              <PersonaInput 
+                mode={mode}
+                onModeChange={setMode}
+                strategyMode={strategyMode}
+                onStrategyModeChange={setStrategyMode}
+                onExecute={handleExecute} 
+                isLoading={isLoading}
+                loadingText={status}
+              />
+              <div className="flex justify-between items-center mt-3">
+                 {status && (
+                    <div className={`font-mono text-xs px-2 py-1 rounded border transition-colors duration-300 ${
+                        status.includes("Error") ? "text-red-400 border-red-900 bg-red-900/10" : "text-cyan-400 border-cyan-900 bg-cyan-900/10 animate-pulse"
+                    }`}>
+                        {status}
+                    </div>
+                 )}
+                 {/* Left Panel Tab Switcher */}
+                 <div className="flex gap-2">
+                    <button onClick={() => setActiveLeftTab('feed')} className={`text-xs px-2 py-1 rounded ${activeLeftTab === 'feed' ? 'bg-gray-800 text-white' : 'text-gray-500'}`}>FEED</button>
+                    <button onClick={() => setActiveLeftTab('report')} className={`text-xs px-2 py-1 rounded ${activeLeftTab === 'report' ? 'bg-gray-800 text-white' : 'text-gray-500'}`}>REPORT</button>
+                 </div>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar relative scrollbar-thin scrollbar-thumb-gray-800">
+               {activeLeftTab === 'feed' && vizData ? (
+                  <DepartmentFeed data={vizData} />
+               ) : report ? (
+                 <div className="prose prose-invert prose-sm max-w-none 
+                    prose-headings:text-cyan-100 prose-headings:font-bold prose-headings:uppercase prose-headings:tracking-wide 
+                    prose-h1:text-2xl prose-h1:border-b prose-h1:border-gray-800 prose-h1:pb-4 prose-h1:mb-6 
+                    prose-h2:text-lg prose-h2:mt-8 prose-h2:text-cyan-400 prose-h2:border-l-4 prose-h2:border-cyan-600 prose-h2:pl-3 
+                    prose-strong:text-yellow-400 prose-strong:font-black 
+                    prose-table:border prose-th:bg-gray-900 prose-th:text-xs prose-th:uppercase prose-td:text-xs prose-td:border-gray-800 
+                    prose-blockquote:border-l-4 prose-blockquote:border-red-500 prose-blockquote:bg-red-900/10 prose-blockquote:p-4 prose-blockquote:rounded-r 
+                 ">
+                    <ReactMarkdown>{report}</ReactMarkdown>
+                 </div>
+               ) : (
+                 <div className="absolute inset-0 flex flex-col items-center justify-center opacity-20 pointer-events-none">
+                   <Activity size={64} className="text-cyan-500 mb-4 animate-pulse" />
+                   <div className="text-sm font-mono tracking-[0.3em]">AWAITING TARGET DATA</div>
+                 </div>
+               )}
+            </div>
+         </div>
+
+         {/* === RIGHT COLUMN: Dashboard Only (Blueprint is Modal) === */}
+         <div className="w-2/5 relative bg-[#0a0a0a]">
+             <div className="h-full p-4 relative">
+                {/* Subtle gradient line */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-600 to-transparent opacity-50"></div>
+                <StrategicDashboard data={vizData} />
+             </div>
+         </div>
+      </div>
+
+      {/* MODAL: Strategic Blueprint */}
+      {showBlueprintModal && vizData && (
+        <StrategicBlueprint data={vizData} onClose={() => setShowBlueprintModal(false)} />
+      )}
     </div>
-  )
+  );
 }

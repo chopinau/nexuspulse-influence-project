@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();  // <--- 这行代码负责加载 .env 文件里的变量
+
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabaseServer';
 

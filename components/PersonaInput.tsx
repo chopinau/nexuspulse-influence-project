@@ -17,6 +17,7 @@ interface PersonaInputProps {
 export function PersonaInput({ mode, onModeChange, strategyMode, onStrategyModeChange, category, onExecute, isLoading, loadingText }: PersonaInputProps) {
   // Common State
   const [topic, setTopic] = useState("");
+  const [market, setMarket] = useState("US"); // NEW: Market Selection
 
   // CFO State
   const [inventory, setInventory] = useState(5000);
@@ -38,6 +39,7 @@ export function PersonaInput({ mode, onModeChange, strategyMode, onStrategyModeC
 
     const payload: any = {
       topic: topic,
+      market: market, // Pass market to parent
       mode: mode,
       strategy_mode: strategyMode,
       category: category || ""
@@ -66,7 +68,7 @@ export function PersonaInput({ mode, onModeChange, strategyMode, onStrategyModeC
         <select
           value={mode}
           onChange={(e) => onModeChange(e.target.value)}
-          className="shrink-0 bg-blue-900/50 border border-cyan-500/30 text-white px-2 h-10 rounded-lg text-sm outline-none focus:border-cyan-500 transition-colors min-w-[190px] cursor-pointer"
+          className="shrink-0 bg-blue-900/50 border border-cyan-500/30 text-white px-2 h-10 rounded-lg text-sm outline-none focus:border-cyan-500 transition-colors min-w-[170px] cursor-pointer"
         >
           <option value="GENERAL" className="bg-black">👔 General Strategy</option>
           <option value="TIKTOK_MARKETING" className="bg-black">🔥 TikTok Viral</option>
@@ -75,19 +77,15 @@ export function PersonaInput({ mode, onModeChange, strategyMode, onStrategyModeC
           <option value="BRAND_ARCHITECT" className="bg-black">🎨 Brand Story</option>
         </select>
 
-        {/* Strategy Mode Selector */}
+        {/* NEW: Market Selector */}
         <select
-          value={strategyMode}
-          onChange={(e) => onStrategyModeChange(e.target.value as 'incubation' | 'growth')}
-          className={`shrink-0 border text-white px-2 h-10 rounded-lg text-sm outline-none transition-colors min-w-[180px] cursor-pointer ${
-            strategyMode === 'incubation' 
-              ? 'bg-teal-900/50 border-teal-500/30 focus:border-teal-500' 
-              : 'bg-violet-900/50 border-violet-500/30 focus:border-violet-500'
-          }`}
-          title={strategyMode === 'incubation' ? "AI will act as a Conservative Guardian. Veto Power: ON for all risks." : "AI will act as a Ruthless Growth Hacker. Veto Power: ON only for fatal risks (bans)."}
+          value={market}
+          onChange={(e) => setMarket(e.target.value)}
+          className="shrink-0 bg-gray-800/50 border border-gray-600/30 text-white px-2 h-10 rounded-lg text-sm outline-none focus:border-gray-400 transition-colors cursor-pointer"
         >
-          <option value="incubation" className="bg-black">🛡️ Safety First (Compliance & Brand Protection)</option>
-          <option value="growth" className="bg-black">🚀 Profit First (Aggressive Growth & ROI)</option>
+          <option value="US" className="bg-black">🇺🇸 US</option>
+          <option value="EU" className="bg-black">🇪🇺 EU</option>
+          <option value="SEA" className="bg-black">🌏 SEA</option>
         </select>
 
         {/* Topic Input (Always Visible) */}
@@ -96,7 +94,7 @@ export function PersonaInput({ mode, onModeChange, strategyMode, onStrategyModeC
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           onKeyDown={(e) => !isLoading && e.key === 'Enter' && handleSubmit()}
-          placeholder={mode === "CROSS_BORDER_CFO" ? "Enter SKU/Product Name..." : "Enter Topic or Brand..."}
+          placeholder={mode === "CROSS_BORDER_CFO" ? "Enter SKU..." : "Enter Topic or Brand..."}
           className="flex-1 bg-transparent border-b border-white/10 text-white h-10 px-2 placeholder:text-gray-600 font-mono focus:border-cyan-500 focus:outline-none transition-colors"
         />
 
