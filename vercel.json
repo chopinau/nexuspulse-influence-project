@@ -1,38 +1,11 @@
 {
   "rewrites": [
-    { "source": "/api/agent-forum", "destination": "/api/agent-forum" }
+    { "source": "/api/python/:path*", "destination": "/api/index.py" }
   ],
   "functions": {
-    "app/api/**/*.ts": {
-      "excludeFiles": [
-        "python_backend/**",
-        "node_modules/@google/genai/**",
-        "node_modules/@tremor/react/**",
-        "node_modules/chart.js/**",
-        "node_modules/react-chartjs-2/**",
-        "node_modules/recharts/**",
-        "node_modules/mermaid/**",
-        "node_modules/chevrotain/**",
-        "node_modules/embla-carousel-react/**",
-        "node_modules/input-otp/**",
-        "node_modules/cmdk/**",
-        "node_modules/@radix-ui/**",
-        "node_modules/framer-motion/**",
-        "node_modules/@prisma/client/**",
-        "node_modules/prisma/**",
-        "node_modules/@next-auth/**",
-        "node_modules/swr/**",
-        "node_modules/date-fns/**",
-        "node_modules/uuid/**",
-        "node_modules/vaul/**",
-        "node_modules/zod/**",
-        "data/**",
-        "tests/**",
-        "**/*.md",
-        "**/*.log",
-        "**/*.txt",
-        "**/*.tsbuildinfo"
-      ]
+    "api/index.py": {
+      "runtime": "python3.9",
+      "includeFiles": "python_backend/**"
     }
   }
 }
