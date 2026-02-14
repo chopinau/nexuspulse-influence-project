@@ -13,3 +13,4 @@ flask-cors
 fastapi
 uvicorn
 supabase
+google-generativeai

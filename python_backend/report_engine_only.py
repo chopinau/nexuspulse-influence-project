@@ -1,239 +1,224 @@
 import json
 import os
 import traceback
-import concurrent.futures
-from tavily import TavilyClient
 from llm_client import call_llm
 from dotenv import load_dotenv
 
 load_dotenv()
-tavily_client = TavilyClient(api_key=os.environ.get("TAVILY_API_KEY"))
 
-# === 1. DORK LIBRARY (UNCHANGED) ===
-DORK_LIBRARY = {
-    "compliance": {
-        "US": "site:cpsc.gov recalls OR site:fda.gov regulations OR site:ftc.gov 'false advertising'",
-        "EU": "site:ec.europa.eu 'CE marking' OR site:rfs.europa.eu 'safety recall'",
-        "SEA": "site:sirim.my certification OR site:kemenperin.go.id SNI",
-        "GLOBAL": "site:iso.org safety standards regulations"
-    },
-    "selection": {
-        "GLOBAL": "site:amazon.com 'best seller' 'customer reviews' OR site:ebay.com 'sold listings' price",
-        "SEA": "site:shopee.com 'sold' price OR site:lazada.com reviews"
-    },
-    "pain": {
-        "GLOBAL": "site:reddit.com 'waste of money' OR 'stopped working' OR 'scam' -site:promotions",
-        "EU": "site:trustpilot.com reviews complaints problems"
-    },
-    "supply": {
-        "GLOBAL": "site:alibaba.com 'FOB Price' MOQ OR site:made-in-china.com manufacturer factory",
-        "LOGISTICS": "site:amazon.com 'product dimensions' 'item weight' shipping"
-    },
-    "growth": {
-        "GLOBAL": "site:tiktok.com/tag viral trends OR site:youtube.com 'unboxing' review views"
-    },
-    "culture": {
-        "GLOBAL": "cultural taboos symbolism mistakes marketing"
-    }
-}
+# 智能环境探测：如果你在本地开发（没有 VERCEL 环境变量），就自动挂上你的本地翻墙代理 
+# 这里的 7890 是 Clash 的默认端口，如果你用 v2ray 可能是 10809，请根据实际情况修改 
+# 注意：只有当你有本地代理服务器运行时，才需要取消注释以下代码 
+# if not os.environ.get("VERCEL"): 
+#     print("💻 检测到本地开发环境，已自动挂载本地代理通道...") 
+#     os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890" 
+#     os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890" 
+# else: 
+#     print("☁️ 检测到 Vercel 生产环境，开启海外极速直连模式...")
 
+# Try to initialize Google Generative AI
+genai = None
+try:
+    import google.generativeai as genai
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if api_key:
+        genai.configure(api_key=api_key)
+        print("✅ Google Generative AI initialized")
+    else:
+        print("⚠️ Gemini API key not found, skipping Gemini integration")
+        genai = None # Ensure it's None if key is missing
+except ImportError:
+    print("⚠️ Google Generative AI module not installed, skipping Gemini integration")
+except Exception as e:
+    print(f"⚠️ Failed to initialize Google Generative AI: {e}")
+    genai = None
+
+# Try to initialize Supabase client
+supabase = None
+try:
+    from supabase import create_client, Client
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_KEY")
+    if supabase_url and supabase_key:
+        supabase: Client = create_client(supabase_url, supabase_key)
+        print("✅ Supabase client initialized")
+    else:
+        print("⚠️ Supabase credentials not found, skipping Supabase integration")
+except ImportError:
+    print("⚠️ Supabase module not installed, skipping Supabase integration")
+except Exception as e:
+    print(f"⚠️ Failed to initialize Supabase: {e}")
+
+# ==========================================
+# STEP 0: THE SNIPER (Niche Down)
+# ==========================================
 def generate_focus_topic(product: str, persona: str) -> dict:
-    prompt = f"Role: Product Strategist. Task: Niche down '{product}' for '{persona}' into a specific SKU. Output JSON: {{ 'focus_topic': '...', 'target_market': 'US' }}"
+    prompt = f"Role: Cross-border E-commerce Strategist. Task: Niche down the broad product '{product}' for the persona '{persona}' into a specific SKU. Output JSON: {{ 'focus_topic': '...', 'target_market': 'US or EU' }}"
     try:
         res = call_llm(prompt, response_format="json")
         return json.loads(res)
     except:
         return {"focus_topic": product, "target_market": "US"}
 
-# === 2. PARALLEL SEARCH ENGINE (UNCHANGED) ===
-def fetch_agent_data(agent_name: str, topic: str, market: str):
-    try:
-        dorks = DORK_LIBRARY.get(agent_name, {})
-        query_template = dorks.get(market, dorks.get("GLOBAL", ""))
-        final_query = f"{topic} {query_template}"
-        print(f"   🚀 [{agent_name}] Searching: {final_query[:30]}...")
-        response = tavily_client.search(query=final_query, search_depth="advanced", max_results=3)
-        return f"\n=== {agent_name.upper()} INTEL ===\n" + "\n".join([f"- {r['title']}: {r['content'][:300]}" for r in response['results']])
-    except:
-        return ""
-
-def get_market_intel(topic: str, market: str) -> dict:
-    print(f"🔍 Omni-Scan: {topic} [{market}]")
-    agents = ["compliance", "selection", "pain", "supply", "growth", "culture"]
-    full_context = ""
-    all_news = []
+# ==========================================
+# STEP 1: THE GLOBAL RESEARCHER (Gemini Deep Search)
+# ==========================================
+def generate_deep_research_report(topic: str, market: str) -> str:
+    print(f"🌍 [Phase 1] Initiating Gemini Global Deep Research for: {topic} in {market}...")
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-        future_to_agent = {executor.submit(fetch_agent_data, agent, topic, market): agent for agent in agents}
-        for future in concurrent.futures.as_completed(future_to_agent):
-            full_context += future.result()
+    research_prompt = f"""
+    # Role
+    你是顶级的跨境电商市场情报官（前麦肯锡合伙人）。你的客户是中国的跨境大卖（Amazon/TikTok/独立站老板）。
 
-    try:
-        news_res = tavily_client.search(query=f"{topic} market news reviews {market}", max_results=6)
-        all_news = news_res['results']
-    except:
-        pass
-            
-    return {"context": full_context[:25000], "news": all_news}
+    # Task
+    目标产品：{topic}
+    目标市场：{market}
+    请利用你的原生谷歌搜索能力，撰写一篇 2000 字左右的《麦肯锡式·简体中文行业深度调研报告》。
 
-# === 3. LOGIC MAPPED ANALYSIS ===
-def analyze_with_llm(components: dict) -> dict:
-    topic = components.get("focus_topic")
-    market = components.get("target_market", "US")
-    intel = get_market_intel(topic, market)
-    
-    system_prompt = """
-    ROLE: NexusPulse Strategic Council. 
-    TASK: Analyze the product using the 6-Agent Framework, then synthesize a 'CEO Chain of Thought'.
-    
-    STEP 1: AGENT ANALYSIS (Detailed)
-    - Selection: Define precise niche & competitors.
-    - Culture: Define target persona & taboos.
-    - Pain: Find top user complaint.
-    - Supply: Define core feature & logistics.
-    - Compliance: Check regulations.
-    - Growth: Define viral hook.
+    # Core Philosophy (The CEO Mindset - 5 Fatal Points)
+    你必须完全站在跨境企业老板的“生死视角”进行调研。禁止写“流量贵、出单难”等表层废话。你必须重点深挖并量化以下 5 个致命维度：
+    1. 合规与侵权红线（致死率 TOP1）：重点检索该品类在目标市场的 FDA/CE 等认证门槛、近期 TRO（商标专利侵权）诉讼风险、平台封号重灾区及潜在罚款金额。
+    2. 库存与资金链风险（致死率 TOP2）：重点评估该品类的生命周期、季节性压货风险、预估库存周转天数（DOS）及滞销跌价风险。
+    3. 选品试错与内卷成本（致死率 TOP3）：重点检索该品类的同质化竞争烈度、头部垄断份额、是否有真实的利润空间（避免陷入价格战红海）。
+    4. 本土化与文化盲区（致死率 TOP4）：重点检索该品类在当地的文化禁忌、营销合规风险（如夸大宣传导致的下架）、审美差异及真实受众痛点。
+    5. 供应链与品控崩盘（致死率 TOP5）：重点检索该品类核心差评集中点、退货率风险（高退货率将导致店铺降权关店）、生产交期与材质品控难度。
 
-    STEP 2: NARRATIVE SPINE (Synthesis)
-    - You must extract the narrative nodes DIRECTLY from the agents above.
-    - **Who**: Extracted from Culture Agent (Target Persona).
-    - **Scenario**: Extracted from Pain Agent (Usage Context).
-    - **Pain**: Extracted from Pain Agent (Top Complaint).
-    - **Solution**: Extracted from Supply/Selection Agent (Key Feature).
-    - **Hook**: Extracted from Growth Agent (Marketing Angle).
-    - DO NOT INVENT NEW CONCEPTS. Use the exact keywords found in Step 1.
+    # Report Guidelines (必须严格执行)
+    1. 跨语种侦察：自行将中文产品名精准翻译为英文，直接检索全网最新英文硬核数据（Amazon US, Reddit, Statista, 权威财报等）。
+    2. 数据强迫症：禁止使用“市场很大”，必须给出具体的 CAGR、市场规模、预估退货率、售价区间等量化指标。所有关键数据后必须加上括号引用，如 (Source: Amazon Data 2024)。
+    3. 竞品矩阵：必须使用 Markdown 表格，深度对比至少 3 个真实的海外竞品（包含：品牌、售价、核心卖点、致命短板/差评）。
+    4. SCQA 结构：必须以 S(情景)-C(冲突)-Q(疑问)-A(答案) 开篇，并且最终给出一个明确的裁决建议。
+
+    OUTPUT: 只输出纯 Markdown 文本，包含 H1, H2, H3 标题。绝对不要输出任何 JSON 或代码块包裹。
+    """
     
-    OUTPUT JSON (STRICT):
+    # Define fallback function
+    def run_fallback(error_msg=""):
+        print(f"   ⚠️ Switching to Fallback (LLM Knowledge Base) due to: {error_msg}")
+        fallback_prompt = f"Generate a comprehensive market research report for '{topic}' in {market} market. Focus on compliance risks, inventory management, competition, cultural factors, and supply chain issues. Include specific data points and competitor analysis. Output in Markdown format. \n\n(Note: Real-time search failed, use your internal knowledge base to approximate best-practice advice.)"
+        try:
+            return call_llm(fallback_prompt)
+        except Exception as e:
+            return f"## Critical System Error\n\nFailed to generate report via both Gemini and Fallback.\nOriginal Error: {error_msg}\nFallback Error: {str(e)}"
+
+    # Attempt Gemini Search
+    if genai:
+        try:
+            # Use Gemini 1.5 Pro with Google Search tool enabled
+            model = genai.GenerativeModel('gemini-1.5-pro', tools='google_search_retrieval')
+            response = model.generate_content(research_prompt)
+            markdown_report = response.text
+            print(f"   ✅ [Phase 1] Gemini Report Generated. Length: {len(markdown_report)} chars.")
+            return markdown_report
+        except Exception as e:
+            print(f"   ❌ [Phase 1] Gemini Search Failed: {e}")
+            return run_fallback(str(e))
+    else:
+        return run_fallback("Gemini not initialized (Missing API Key or Module)")
+
+# ==========================================
+# STEP 2: THE 6-AGENT JUDGE (JSON Extraction)
+# ==========================================
+def extract_dashboard_json(report_content: str, topic: str) -> dict:
+    print(f"🧠 [Phase 2] 6-Agent Committee extracting structured data...")
+    
+    judge_prompt = """
+    # Role
+    You are the NexusPulse Strategic Committee, acting as 6 distinct department heads (Selection, Culture, Pain, Compliance, Supply, Growth).
+    
+    # Task
+    Read the provided "Industry Research Report" and extract/infer structured metrics to power our React Dashboard.
+    You must output STRICT JSON. Do not output Markdown.
+    
+    # JSON OUTPUT FORMAT:
     {
         "verdict": "GO" | "CAUTION" | "KILL",
-        "final_summary": "Strategic imperative.",
+        "final_summary": "One punchy sentence summarizing the verdict (in Chinese).",
         "narrative": {
-            "root": "The Precise Niche Product",
-            "who": "Target Persona (Max 4 words)",
-            "scenario": "Usage Context (Max 4 words)",
-            "pain": "Core Pain Point (Max 4 words)",
-            "solution": "Killer Feature (Max 4 words)",
-            "moat": "Defensive Moat (Max 4 words)",
-            "hook": "Marketing Hook (Max 4 words)"
+            "root": "...", "target_user": "...", "usage_scenario": "...", "core_pain": "...",
+            "core_solution": "...", "strategic_moat": "...", "growth_hook": "..."
         },
-        "agents": {
-            "selection": { "score": 8.5, "title": "Niche", "analysis": "..." },
-            "culture": { "score": 90, "title": "Fit", "taboo_risk": "...", "analysis": "..." },
-            "pain": { "urgency": 9.2, "title": "Pain", "top_pain": "...", "solution_rate": 88, "analysis": "..." },
-            "compliance": { "risk": 2, "title": "Risk", "red_lines": 0, "fix_cost": "$0", "red_line_reason": "...", "analysis": "..." },
-            "supply": { "dos": 35, "title": "Supply", "cliff_risk": "Low", "analysis": "..." },
-            "growth": { "prob": 80, "title": "Growth", "tiktok_hook": "...", "analysis": "..." }
+        "dashboard_agents": {
+            "selection": { "score": 85, "title": "内卷成本", "analysis": "Short 1-sentence Chinese insight based on the report." },
+            "culture": { "score": 90, "title": "本土盲区", "analysis": "..." },
+            "pain": { "urgency": 9.2, "title": "真实痛点", "analysis": "..." },
+            "compliance": { "risk": 2, "title": "合规红线", "analysis": "..." },
+            "supply": { "dos": 35, "title": "库存周期", "analysis": "..." },
+            "growth": { "prob": 80, "title": "盈利空间", "analysis": "..." }
         },
-        "competitors": [ {"name": "...", "price": "...", "weakness": "..."} ]
+        "charts": {
+            "monthly_sentiment": [ {"month": "M1", "sentiment": 80}, {"month": "M2", "sentiment": 85} ],
+            "competitor_radar": [
+                {"subject": "价格空间", "A": 90, "B": 70, "fullMark": 100},
+                {"subject": "合规安全", "A": 85, "B": 90, "fullMark": 100},
+                {"subject": "本土化", "A": 60, "B": 95, "fullMark": 100},
+                {"subject": "供应链稳定", "A": 95, "B": 50, "fullMark": 100},
+                {"subject": "品控退货率", "A": 80, "B": 85, "fullMark": 100}
+            ],
+            "pain_distribution": [
+                {"name": "质量差", "value": 40}, {"name": "太贵", "value": 30}, {"name": "售后差", "value": 20}, {"name": "其他", "value": 10}
+            ]
+        }
     }
     """
     
     try:
-        user_prompt = f"Product: {topic}\nMarket: {market}\n\nINTEL:\n{intel['context']}"
-        raw = call_llm(user_prompt, system_prompt=system_prompt, response_format="json")
-        data = json.loads(raw)
+        raw_json = call_llm(f"REPORT CONTENT TO ANALYZE:\n\n{report_content}", system_prompt=judge_prompt, response_format="json")
+        data = json.loads(raw_json)
+        print("   ✅ [Phase 2] JSON Extraction Successful.")
+        return data
+    except Exception as e:
+        print(f"   ❌ [Phase 2] JSON Extraction Failed: {e}")
+        return {}
+
+# ==========================================
+# MAIN ORCHESTRATOR
+# ==========================================
+def analyze_with_llm(components: dict) -> dict:
+    topic = components.get("focus_topic", components.get("product", "Unknown Product"))
+    market = components.get("target_market", components.get("market", "US"))
+    
+    try:
+        # 1. Pipeline execution
+        deep_report = generate_deep_research_report(topic, market)
+        dash_data = extract_dashboard_json(deep_report, topic)
         
-        # === THE LOGIC-MAPPED MERMAID ===
-        nav = data.get('narrative', {})
-        verdict = data.get('verdict')
+        # 2. Supabase Storage
+        if len(deep_report) > 100 and supabase:
+            try:
+                supabase.table('reports').insert({
+                    "topic": topic,
+                    "market": market,
+                    "content": deep_report,
+                    "meta_json": dash_data.get('dashboard_agents', {})
+                }).execute()
+                print(f"   💾 Saved to Supabase successfully.")
+            except Exception as db_err:
+                print(f"   ❌ Supabase Save Failed: {db_err}")
+
+        # 3. Build Mermaid Blueprint (The Logic Spine)
+        nav = dash_data.get('narrative', {})
+        verdict = dash_data.get('verdict', 'CAUTION')
         color = "#22c55e" if verdict == "GO" else ("#ef4444" if verdict == "KILL" else "#eab308")
-
-        mermaid = f"""
-        graph TD
-            %% Base Classes - CLEAN & LARGE
+        
+        mermaid = f"""graph TD
             classDef spine fill:#000,stroke:#fff,stroke-width:2px,color:#fff,font-size:20px,font-weight:bold;
-            classDef context fill:#111,stroke:#666,stroke-width:1px,color:#aaa,stroke-dasharray: 5 5,font-size:16px;
             classDef final fill:{color},stroke:#fff,stroke-width:4px,color:#000,font-size:24px,font-weight:black;
-
-            %% The Narrative Spine
-            Root(("{nav.get('root', topic)[:20]}..."))
-            Target["👤 {nav.get('who', 'User')}"]
-            Scene["🏙️ {nav.get('scenario', 'Context')}"]
-            Pain["🔥 {nav.get('pain', 'Pain')}"]
-            Sol["🛠️ {nav.get('solution', 'Solution')}"]
-            Moat["🛡️ {nav.get('moat', 'Moat')}"]
-            Hook["🎣 {nav.get('hook', 'Hook')}"]
-            End>🏁 {verdict}]
-
-            %% Logic Flow
-            Root ==> Target
-            Target -.-> Scene
-            Scene ==> Pain
-            Pain ==> Sol
-            Sol --> Moat
-            Moat ==> Hook
-            Hook ==> End
-
-            %% Styling
-            class Root,Target,Pain,Sol,Moat,Hook spine;
-            class Scene context;
-            class End final;
+            Root(("{topic[:20]}...")) ==> Target["👤 {nav.get('target_user', 'User')}"] ==> Scene["🏙️ {nav.get('usage_scenario', 'Context')}"] ==> Pain["🔥 {nav.get('core_pain', 'Pain')}"] ==> Sol["🛠️ {nav.get('core_solution', 'Solution')}"] ==> Moat["🛡️ {nav.get('strategic_moat', 'Moat')}"] ==> Hook["🎣 {nav.get('growth_hook', 'Hook')}"] ==> End>🏁 {verdict}]
+            class Root,Target,Scene,Pain,Sol,Moat,Hook spine; class End final;
+            linkStyle default stroke:{color},stroke-width:3px;"""
             
-            %% Link Styling
-            linkStyle 0,2,3,5,6 stroke:{color},stroke-width:3px;
-            linkStyle 1,4 stroke:#666,stroke-width:1px,stroke-dasharray: 5 5;
-        """
-        
-        deep_report = generate_deep_report(data, topic)
-        
         return {
             "structured_data": {
                 "verdict": verdict,
-                "final_summary": data['final_summary'],
-                "agents": data['agents'],
-                "competitors": data.get('competitors', []),
+                "final_summary": dash_data.get('final_summary', ''),
+                "agents": dash_data.get('dashboard_agents', {}),
+                "charts": dash_data.get('charts', {}),
                 "mermaid_code": mermaid,
-                "news": intel['news'],
+                "news": [],
                 "full_report": deep_report
-            },
-            "markdown_report": deep_report
+            }
         }
     except Exception as e:
         traceback.print_exc()
         return {"error": str(e)}
-
-def generate_deep_report(data, topic):
-    ag = data['agents']
-    nav = data.get('narrative', {})
-    
-    return f"""
-# 🚀 跨境六维深度研报：{topic}
-## 1. 🏁 CEO 最终裁决：{data.get('verdict')}
-> **战略定调**：{data.get('final_summary')}
-
----
-
-## 📖 战略叙事主线 (Strategic Spine)
-* **核心用户**：{nav.get('who', 'N/A')}
-* **场景痛点**：{nav.get('scenario', 'N/A')} -> {nav.get('pain', 'N/A')}
-* **破局方案**：{nav.get('solution', 'N/A')}
-* **增长钩子**：{nav.get('hook', 'N/A')}
-
----
-
-## 2. 🧬 智能选品局 (The Sniper)
-* **差异化得分**：**{ag['selection'].get('score', 0)}/10**
-* **深度分析**：{ag['selection'].get('analysis', '')}
-
-## 3. 🌍 文化适配局 (The Localizer)
-* **文化契合度**：**{ag['culture'].get('score', 0)}%**
-* **深度分析**：{ag['culture'].get('analysis', '')}
-
-## 4. 🤕 痛点挖掘局 (The Pain Killer)
-* **Top1 痛点**：{ag['pain'].get('top_pain', 'N/A')}
-* **深度分析**：{ag['pain'].get('analysis', '')}
-
-## 5. 🛡️ 合规风控局 (The Gatekeeper)
-* **风险指数**：**{ag['compliance'].get('risk', 0)}/10**
-* **致命红线**：{ag['compliance'].get('red_lines', 0)} 项触发
-* **深度分析**：{ag['compliance'].get('analysis', '')}
-
-## 6. 💰 供应链与资金局 (The CFO)
-* **DOS (库存周转)**：**{ag['supply'].get('dos', 0)} 天**
-* **库存悬崖风险**：{ag['supply'].get('cliff_risk', 'Unknown')}
-* **深度分析**：{ag['supply'].get('analysis', '')}
-
-## 7. 📈 营销增长局 (The Growth Hacker)
-* **TikTok Hook**：`{ag['growth'].get('tiktok_hook', 'N/A')}`
-* **深度分析**：{ag['growth'].get('analysis', '')}
-"""
