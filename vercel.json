@@ -1,12 +1,15 @@
 {
   "version": 2,
-  "rewrites": [
-    { "source": "/api/python/:path*", "destination": "/api/index.py" }
-  ],
-  "functions": {
-    "api/index.py": {
-      "runtime": "python3.9",
-      "includeFiles": "python_backend/**"
+  "builds": [
+    {
+      "src": "python_backend/main.py",
+      "use": "@vercel/python"
     }
-  }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "python_backend/main.py"
+    }
+  ]
 }

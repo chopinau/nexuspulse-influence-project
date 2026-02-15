@@ -7,6 +7,10 @@ from report_engine_only import generate_focus_topic, analyze_with_llm
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+@app.get("/")
+def read_root():
+    return {"status": "NexusPulse Backend is running on Vercel!"}
+
 # Try to initialize Supabase Client
 supabase = None
 try:
