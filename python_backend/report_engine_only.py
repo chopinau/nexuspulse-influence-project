@@ -1,46 +1,42 @@
-import json
 import os
+import json
 import traceback
-from llm_client import call_llm
+from pydantic import BaseModel, Field
+from typing import List, Dict
 from dotenv import load_dotenv
+
+# Try to import CrewAI & Langchain modules
+try:
+    # CrewAI & Langchain imports
+    from crewai import Agent, Task, Crew, Process
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_core.tools import Tool
+    from langchain_community.utilities import GoogleSearchAPIWrapper
+    CREWAI_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ CrewAI or Langchain module not installed: {e}")
+    CREWAI_AVAILABLE = False
+except Exception as e:
+    print(f"⚠️ Failed to import CrewAI modules: {e}")
+    CREWAI_AVAILABLE = False
+
+# 1. Environment & Proxy Setup (Vercel Compatible)
+if not os.environ.get("VERCEL"):
+    print("💻 Local Dev: Setting up proxy...")
+    # USER: Change 7890 to your local proxy port if needed
+    os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890"
+    os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890"
 
 load_dotenv()
 
-# 智能环境探测：如果你在本地开发（没有 VERCEL 环境变量），就自动挂上你的本地翻墙代理 
-# 这里的 7890 是 Clash 的默认端口，如果你用 v2ray 可能是 10809，请根据实际情况修改 
-# 注意：只有当你有本地代理服务器运行时，才需要取消注释以下代码 
-# if not os.environ.get("VERCEL"): 
-#     print("💻 检测到本地开发环境，已自动挂载本地代理通道...") 
-#     os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890" 
-#     os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890" 
-# else: 
-#     print("☁️ 检测到 Vercel 生产环境，开启海外极速直连模式...")
-
-# Try to initialize Google Generative AI
-genai = None
-try:
-    import google.generativeai as genai
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if api_key:
-        genai.configure(api_key=api_key)
-        print("✅ Google Generative AI initialized")
-    else:
-        print("⚠️ Gemini API key not found, skipping Gemini integration")
-        genai = None # Ensure it's None if key is missing
-except ImportError:
-    print("⚠️ Google Generative AI module not installed, skipping Gemini integration")
-except Exception as e:
-    print(f"⚠️ Failed to initialize Google Generative AI: {e}")
-    genai = None
-
-# Try to initialize Supabase client
+# Initialize Supabase
 supabase = None
 try:
     from supabase import create_client, Client
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_key = os.environ.get("SUPABASE_KEY")
     if supabase_url and supabase_key:
-        supabase: Client = create_client(supabase_url, supabase_key)
+        supabase = create_client(supabase_url, supabase_key)
         print("✅ Supabase client initialized")
     else:
         print("⚠️ Supabase credentials not found, skipping Supabase integration")
@@ -49,176 +45,212 @@ except ImportError:
 except Exception as e:
     print(f"⚠️ Failed to initialize Supabase: {e}")
 
+# 2. Initialize Gemini LLM
+# We use Gemini 1.5 Pro as the core brain for both agents
+llm = None
+if CREWAI_AVAILABLE:
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-1.5-pro",
+            google_api_key=os.environ.get("GEMINI_API_KEY"),
+            temperature=0.2
+        )
+        print("✅ Gemini LLM initialized")
+    except Exception as e:
+        print(f"⚠️ Failed to initialize Gemini LLM: {e}")
+        CREWAI_AVAILABLE = False
+else:
+    print("⚠️ Skipping Gemini LLM initialization: CrewAI not available")
+
+# 3. Pydantic Schemas (STRICT FRONTEND CONTRACT)
+class DashboardAgent(BaseModel):
+    score: int = Field(description="0-100 score. STRICT RULE: If ANY fatal risk is found (e.g., CR5>70%, DOS>120 days, FDA missing), score MUST be <40.")
+    title: str = Field(description="The dimension name (e.g., 合规风控, 供应链健康)")
+    analysis: str = Field(description="A sharp, 1-sentence Chinese critique using hard data (e.g., 'CR5高达75%，毛利仅12%，已陷入红海价格战').")
+
+class PainPoint(BaseModel):
+    name: str = Field(description="Specific fatal friction point (e.g., '超30天长海运后产品良率不达标退货损失', 'TRO侵权冻结资金'). DO NOT use vague words like '质量差'.")
+    value: int = Field(description="Estimated monthly profit loss absolute value in USD (e.g., 50000).")
+
+class FinalReportOutput(BaseModel):
+    verdict: str = Field(description="MUST be 'KILL' if ANY DashboardAgent score is <40. Otherwise 'CAUTION' or 'GO'.")
+    final_summary: str = Field(description="One punchy sentence summarizing the verdict with a core metric.")
+    narrative: Dict[str, str] = Field(description="Keys: root, target_user, usage_scenario, core_pain, core_solution, strategic_moat, growth_hook")
+    dashboard_agents: Dict[str, DashboardAgent] = Field(description="Must contain exact keys: selection, culture, pain, compliance, supply, growth")
+    monthly_sentiment: List[Dict[str, int]] = Field(description="List of dicts with 'month' (e.g. M1) and 'sentiment' (-100 to 100).")
+    competitor_radar: List[Dict[str, int]] = Field(description="List of dicts with 'subject', 'A' (our score), 'B' (top competitor score), 'fullMark': 100.")
+    pain_distribution: List[PainPoint]
+    deep_report_markdown: str = Field(description="The full 2000-word SCQA Markdown report generated by the Researcher.")
+
 # ==========================================
-# STEP 0: THE SNIPER (Niche Down)
+# STEP 0: THE SNIPER (Niche Down - Kept simple)
 # ==========================================
 def generate_focus_topic(product: str, persona: str) -> dict:
-    prompt = f"Role: Cross-border E-commerce Strategist. Task: Niche down the broad product '{product}' for the persona '{persona}' into a specific SKU. Output JSON: {{ 'focus_topic': '...', 'target_market': 'US or EU' }}"
+    from llm_client import call_llm # Fallback to original for this tiny task
+    prompt = f"Role: Cross-border E-commerce Strategist. Task: Niche down '{product}' for '{persona}'. Output JSON: {{ 'focus_topic': '...', 'target_market': 'US or EU' }}"
     try:
-        res = call_llm(prompt, response_format="json")
-        return json.loads(res)
+        return json.loads(call_llm(prompt, response_format="json"))
     except:
         return {"focus_topic": product, "target_market": "US"}
 
 # ==========================================
-# STEP 1: THE GLOBAL RESEARCHER (Gemini Deep Search)
-# ==========================================
-def generate_deep_research_report(topic: str, market: str) -> str:
-    print(f"🌍 [Phase 1] Initiating Gemini Global Deep Research for: {topic} in {market}...")
-    
-    research_prompt = f"""
-    # Role
-    你是顶级的跨境电商市场情报官（前麦肯锡合伙人）。你的客户是中国的跨境大卖（Amazon/TikTok/独立站老板）。
-
-    # Task
-    目标产品：{topic}
-    目标市场：{market}
-    请利用你的原生谷歌搜索能力，撰写一篇 2000 字左右的《麦肯锡式·简体中文行业深度调研报告》。
-
-    # Core Philosophy (The CEO Mindset - 5 Fatal Points)
-    你必须完全站在跨境企业老板的“生死视角”进行调研。禁止写“流量贵、出单难”等表层废话。你必须重点深挖并量化以下 5 个致命维度：
-    1. 合规与侵权红线（致死率 TOP1）：重点检索该品类在目标市场的 FDA/CE 等认证门槛、近期 TRO（商标专利侵权）诉讼风险、平台封号重灾区及潜在罚款金额。
-    2. 库存与资金链风险（致死率 TOP2）：重点评估该品类的生命周期、季节性压货风险、预估库存周转天数（DOS）及滞销跌价风险。
-    3. 选品试错与内卷成本（致死率 TOP3）：重点检索该品类的同质化竞争烈度、头部垄断份额、是否有真实的利润空间（避免陷入价格战红海）。
-    4. 本土化与文化盲区（致死率 TOP4）：重点检索该品类在当地的文化禁忌、营销合规风险（如夸大宣传导致的下架）、审美差异及真实受众痛点。
-    5. 供应链与品控崩盘（致死率 TOP5）：重点检索该品类核心差评集中点、退货率风险（高退货率将导致店铺降权关店）、生产交期与材质品控难度。
-
-    # Report Guidelines (必须严格执行)
-    1. 跨语种侦察：自行将中文产品名精准翻译为英文，直接检索全网最新英文硬核数据（Amazon US, Reddit, Statista, 权威财报等）。
-    2. 数据强迫症：禁止使用“市场很大”，必须给出具体的 CAGR、市场规模、预估退货率、售价区间等量化指标。所有关键数据后必须加上括号引用，如 (Source: Amazon Data 2024)。
-    3. 竞品矩阵：必须使用 Markdown 表格，深度对比至少 3 个真实的海外竞品（包含：品牌、售价、核心卖点、致命短板/差评）。
-    4. SCQA 结构：必须以 S(情景)-C(冲突)-Q(疑问)-A(答案) 开篇，并且最终给出一个明确的裁决建议。
-
-    OUTPUT: 只输出纯 Markdown 文本，包含 H1, H2, H3 标题。绝对不要输出任何 JSON 或代码块包裹。
-    """
-    
-    # Define fallback function
-    def run_fallback(error_msg=""):
-        print(f"   ⚠️ Switching to Fallback (LLM Knowledge Base) due to: {error_msg}")
-        fallback_prompt = f"Generate a comprehensive market research report for '{topic}' in {market} market. Focus on compliance risks, inventory management, competition, cultural factors, and supply chain issues. Include specific data points and competitor analysis. Output in Markdown format. \n\n(Note: Real-time search failed, use your internal knowledge base to approximate best-practice advice.)"
-        try:
-            return call_llm(fallback_prompt)
-        except Exception as e:
-            return f"## Critical System Error\n\nFailed to generate report via both Gemini and Fallback.\nOriginal Error: {error_msg}\nFallback Error: {str(e)}"
-
-    # Attempt Gemini Search
-    if genai:
-        try:
-            # Use Gemini 1.5 Pro with Google Search tool enabled
-            model = genai.GenerativeModel('gemini-1.5-pro', tools='google_search_retrieval')
-            response = model.generate_content(research_prompt)
-            markdown_report = response.text
-            print(f"   ✅ [Phase 1] Gemini Report Generated. Length: {len(markdown_report)} chars.")
-            return markdown_report
-        except Exception as e:
-            print(f"   ❌ [Phase 1] Gemini Search Failed: {e}")
-            return run_fallback(str(e))
-    else:
-        return run_fallback("Gemini not initialized (Missing API Key or Module)")
-
-# ==========================================
-# STEP 2: THE 6-AGENT JUDGE (JSON Extraction)
-# ==========================================
-def extract_dashboard_json(report_content: str, topic: str) -> dict:
-    print(f"🧠 [Phase 2] 6-Agent Committee extracting structured data...")
-    
-    judge_prompt = """
-    # Role
-    You are the NexusPulse Strategic Committee, acting as 6 distinct department heads (Selection, Culture, Pain, Compliance, Supply, Growth).
-    
-    # Task
-    Read the provided "Industry Research Report" and extract/infer structured metrics to power our React Dashboard.
-    You must output STRICT JSON. Do not output Markdown.
-    
-    # JSON OUTPUT FORMAT:
-    {
-        "verdict": "GO" | "CAUTION" | "KILL",
-        "final_summary": "One punchy sentence summarizing the verdict (in Chinese).",
-        "narrative": {
-            "root": "...", "target_user": "...", "usage_scenario": "...", "core_pain": "...",
-            "core_solution": "...", "strategic_moat": "...", "growth_hook": "..."
-        },
-        "dashboard_agents": {
-            "selection": { "score": 85, "title": "内卷成本", "analysis": "Short 1-sentence Chinese insight based on the report." },
-            "culture": { "score": 90, "title": "本土盲区", "analysis": "..." },
-            "pain": { "urgency": 9.2, "title": "真实痛点", "analysis": "..." },
-            "compliance": { "risk": 2, "title": "合规红线", "analysis": "..." },
-            "supply": { "dos": 35, "title": "库存周期", "analysis": "..." },
-            "growth": { "prob": 80, "title": "盈利空间", "analysis": "..." }
-        },
-        "charts": {
-            "monthly_sentiment": [ {"month": "M1", "sentiment": 80}, {"month": "M2", "sentiment": 85} ],
-            "competitor_radar": [
-                {"subject": "价格空间", "A": 90, "B": 70, "fullMark": 100},
-                {"subject": "合规安全", "A": 85, "B": 90, "fullMark": 100},
-                {"subject": "本土化", "A": 60, "B": 95, "fullMark": 100},
-                {"subject": "供应链稳定", "A": 95, "B": 50, "fullMark": 100},
-                {"subject": "品控退货率", "A": 80, "B": 85, "fullMark": 100}
-            ],
-            "pain_distribution": [
-                {"name": "质量差", "value": 40}, {"name": "太贵", "value": 30}, {"name": "售后差", "value": 20}, {"name": "其他", "value": 10}
-            ]
-        }
-    }
-    """
-    
-    try:
-        raw_json = call_llm(f"REPORT CONTENT TO ANALYZE:\n\n{report_content}", system_prompt=judge_prompt, response_format="json")
-        data = json.loads(raw_json)
-        print("   ✅ [Phase 2] JSON Extraction Successful.")
-        return data
-    except Exception as e:
-        print(f"   ❌ [Phase 2] JSON Extraction Failed: {e}")
-        return {}
-
-# ==========================================
-# MAIN ORCHESTRATOR
+# MAIN ORCHESTRATOR: CREWAI EXECUTION
 # ==========================================
 def analyze_with_llm(components: dict) -> dict:
     topic = components.get("focus_topic", components.get("product", "Unknown Product"))
     market = components.get("target_market", components.get("market", "US"))
     
+    if not CREWAI_AVAILABLE:
+        print(f"⚠️ CrewAI not available, using fallback for: {topic} in {market}")
+        return {
+            "structured_data": {
+                "verdict": "CAUTION",
+                "final_summary": "CrewAI not available, using fallback analysis",
+                "agents": {
+                    "selection": {"score": 50, "title": "选品内卷", "analysis": "CrewAI not available for detailed analysis"},
+                    "culture": {"score": 50, "title": "本土盲区", "analysis": "CrewAI not available for detailed analysis"},
+                    "pain": {"score": 50, "title": "真实痛点", "analysis": "CrewAI not available for detailed analysis"},
+                    "compliance": {"score": 50, "title": "合规风控", "analysis": "CrewAI not available for detailed analysis"},
+                    "supply": {"score": 50, "title": "供应链健康", "analysis": "CrewAI not available for detailed analysis"},
+                    "growth": {"score": 50, "title": "增长潜力", "analysis": "CrewAI not available for detailed analysis"}
+                },
+                "charts": {
+                    "monthly_sentiment": [],
+                    "competitor_radar": [],
+                    "pain_distribution": []
+                },
+                "mermaid_code": "graph TD\n    Root((CrewAI not available)) --> End>🏁 CAUTION]",
+                "news": [],
+                "full_report": "# CrewAI Not Available\n\n## Error\nCrewAI or related modules are not installed. Please install the required dependencies using:\n\n```bash\npip install -r python_backend/requirements.txt\n```\n\n## Fallback Analysis\nService is running with limited functionality."
+            }
+        }
+    
+    print(f"🚀 Launching CrewAI Pipeline for: {topic} in {market}")
+
+    # Define Agent 1: The Global Researcher
+    researcher = Agent(
+        role='顶级跨境市场情报官 (Top-Tier Cross-border Market Intelligence Officer)',
+        goal=f'利用全网检索能力，深挖 {topic} 在 {market} 市场的硬核量化数据，并撰写 2000 字的《麦肯锡式·简体中文行业深度调研报告》。',
+        backstory="""你是前麦肯锡合伙人。你必须完全站在跨境企业老板的“生死视角”进行调研。
+        你必须深挖以下5个维度的量化数据：
+        1. 合规风控 (FDA/CE强制认证, TRO侵权案例, VAT稽查)
+        2. 供应链 (DOS库存周转天数预估, 头程海运时效)
+        3. 选品内卷 (CR5集中度, 毛利率, CPC均值)
+        4. 本土化 (文化翻车案例, 广告合规)
+        5. 品控 (退货率, VP差评核心原因)。
+        禁止说“市场很大”，必须给出具体的 CAGR、市场规模、售价区间。所有关键数据必须带括号引用，如 (Source: Amazon Data 2024)。""",
+        verbose=True,
+        allow_delegation=False,
+        llm=llm
+        # Note: If you have Google Search API configured in Langchain, add tools=[search_tool] here.
+        # For now, Gemini 1.5 Pro has strong internal knowledge + native grounding capabilities.
+    )
+
+    # Define Agent 2: The Strategic Judge
+    judge = Agent(
+        role='跨境生死线裁判官 (Cross-border Survival Line Strategic Judge)',
+        goal='基于情报官的报告，严格按照【跨境生死线标准】进行 6 维打分，并提取致命摩擦点利润损失数据。',
+        backstory="""你是极其冷酷的跨境电商战略裁决委员会。你必须评估报告，满分100。
+        【极其重要的红线规则】：若触碰以下任意一条红线，对应维度得分必须 <40，且总Verdict必须为 KILL：
+        - 合规风控官 (compliance)：存在TRO侵权风险、未做强制认证、税务异常。
+        - 供应链CFO (supply)：DOS≥120天、断货率高、滞销库存占比高。
+        - 选品狙击手 (selection)：CR5≥70%且毛利率低、毫无专利/功能壁垒。
+        - 增长黑客 (growth)：ACoS超标、CAC/LTV失衡、纯靠付费流量。
+        - 本土化文化官 (culture)：存在宗教/文化冒犯、营销违规被封险。
+        - 真实痛点杀手 (pain)：海运后退货率≥15%、Listing星级存低于3.5风险。
+        你必须严格输出 JSON 格式，提取出导致亏损的 TOP 致命摩擦点 (pain_distribution)。""",
+        verbose=True,
+        allow_delegation=False,
+        llm=llm
+    )
+
+    # Define Tasks
+    research_task = Task(
+        description=f"深度检索 {topic} ({market}市场) 的数据。输出一篇包含 SCQA 结构、3个真实竞品 Markdown 对比表格、以及 5 大痛点深度分析的 2000 字中文报告。",
+        expected_output="A 2000-word Markdown report in Simplified Chinese with SCQA, Competitor Tables, and citations.",
+        agent=researcher
+    )
+
+    judge_task = Task(
+        description="""阅读情报官产出的 Markdown 报告。
+        1. 严格按照你的 Backstory 中的 6 大红线标准进行打分。如果有任何红线被触发，对应 score 必须 <40。
+        2. 如果任意 score < 40，verdict 必须是 'KILL'。
+        3. 提取 pain_distribution 柱状图数据，名字必须是具体的跨境黑话（如 '目的国VAT税务不合规罚款'），数值是预估月度损失(美元)。
+        4. 将情报官完整的 Markdown 报告原文，原封不动地放入 `deep_report_markdown` 字段中。""",
+        expected_output="A strict JSON object conforming perfectly to the FinalReportOutput Pydantic schema.",
+        agent=judge,
+        output_pydantic=FinalReportOutput # THIS GUARANTEES JSON STRUCTURE
+    )
+
+    # Form the Crew
+    pulse_crew = Crew(
+        agents=[researcher, judge],
+        tasks=[research_task, judge_task],
+        process=Process.sequential,
+        verbose=True
+    )
+
     try:
-        # 1. Pipeline execution
-        deep_report = generate_deep_research_report(topic, market)
-        dash_data = extract_dashboard_json(deep_report, topic)
+        # Kickoff the pipeline
+        result = pulse_crew.kickoff()
         
-        # 2. Supabase Storage
-        if len(deep_report) > 100 and supabase:
+        # CrewAI returns the Pydantic model directly if output_pydantic is set in the last task
+        # Convert Pydantic model to dict
+        if hasattr(result, 'pydantic'):
+            data = result.pydantic.model_dump()
+        else:
+            # Fallback parsing if CrewAI returned a string wrapper
+            import json
+            # Extract JSON from potential markdown code blocks
+            raw_text = result.raw
+            if "```json" in raw_text:
+                raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in raw_text:
+                raw_text = raw_text.split("```")[1].split("```")[0].strip()
+            data = json.loads(raw_text)
+
+        deep_report = data.get('deep_report_markdown', '')
+        
+        # Save to Supabase
+        if len(deep_report) > 100:
             try:
                 supabase.table('reports').insert({
                     "topic": topic,
                     "market": market,
                     "content": deep_report,
-                    "meta_json": dash_data.get('dashboard_agents', {})
+                    "meta_json": data.get('dashboard_agents', {})
                 }).execute()
                 print(f"   💾 Saved to Supabase successfully.")
             except Exception as db_err:
                 print(f"   ❌ Supabase Save Failed: {db_err}")
 
-        # 3. Build Mermaid Blueprint (The Logic Spine)
-        nav = dash_data.get('narrative', {})
-        verdict = dash_data.get('verdict', 'CAUTION')
+        # Build Mermaid
+        nav = data.get('narrative', {})
+        verdict = data.get('verdict', 'CAUTION')
         color = "#22c55e" if verdict == "GO" else ("#ef4444" if verdict == "KILL" else "#eab308")
-        
         mermaid = f"""graph TD
             classDef spine fill:#000,stroke:#fff,stroke-width:2px,color:#fff,font-size:20px,font-weight:bold;
             classDef final fill:{color},stroke:#fff,stroke-width:4px,color:#000,font-size:24px,font-weight:black;
             Root(("{topic[:20]}...")) ==> Target["👤 {nav.get('target_user', 'User')}"] ==> Scene["🏙️ {nav.get('usage_scenario', 'Context')}"] ==> Pain["🔥 {nav.get('core_pain', 'Pain')}"] ==> Sol["🛠️ {nav.get('core_solution', 'Solution')}"] ==> Moat["🛡️ {nav.get('strategic_moat', 'Moat')}"] ==> Hook["🎣 {nav.get('growth_hook', 'Hook')}"] ==> End>🏁 {verdict}]
             class Root,Target,Scene,Pain,Sol,Moat,Hook spine; class End final;
             linkStyle default stroke:{color},stroke-width:3px;"""
-            
+
         return {
             "structured_data": {
                 "verdict": verdict,
-                "final_summary": dash_data.get('final_summary', ''),
-                "agents": dash_data.get('dashboard_agents', {}),
-                "charts": dash_data.get('charts', {}),
+                "final_summary": data.get('final_summary', ''),
+                "agents": data.get('dashboard_agents', {}),
+                "charts": {
+                    "monthly_sentiment": data.get('monthly_sentiment', []),
+                    "competitor_radar": data.get('competitor_radar', []),
+                    "pain_distribution": data.get('pain_distribution', [])
+                },
                 "mermaid_code": mermaid,
                 "news": [],
                 "full_report": deep_report
             }
         }
+
     except Exception as e:
         traceback.print_exc()
-        return {"error": str(e)}
+        return {"error": f"Pipeline execution failed: {str(e)}"}

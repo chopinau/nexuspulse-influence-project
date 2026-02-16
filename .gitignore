@@ -13,6 +13,17 @@ dist-ssr
 .env
 .next
 
+# Python 虚拟环境
+venv/
+env/
+Scripts/
+__pycache__/
+*.py[cod]
+*.pyc
+
+# 本地环境变量（千万别把你的密钥传到 GitHub）
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

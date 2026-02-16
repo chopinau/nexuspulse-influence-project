@@ -14,3 +14,6 @@ fastapi
 uvicorn
 supabase
 google-generativeai
+crewai
+crewai-tools
+langchain-google-genai
