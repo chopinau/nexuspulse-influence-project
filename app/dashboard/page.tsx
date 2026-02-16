@@ -29,7 +29,7 @@ export default function Dashboard() {
 
     try {
       // Step 1: Brainstorm
-      const bRes = await fetch("http://localhost:8000/api/brainstorm", {
+      const bRes = await fetch("http://localhost:8001/api/brainstorm", {
           method: "POST", headers: {"Content-Type":"application/json"},
           body: JSON.stringify({ product: input.topic, persona: "General" })
       });
@@ -38,7 +38,7 @@ export default function Dashboard() {
       
       // Step 2: Analyze
       setStatus(`🎯 Locked Target: ${bData.focus_topic}... Analyzing...`);
-      const aRes = await fetch("http://localhost:8000/api/analyze", {
+      const aRes = await fetch("http://localhost:8001/api/analyze", {
           method: "POST", headers: {"Content-Type":"application/json"},
           body: JSON.stringify({ 
             product: input.topic, 
