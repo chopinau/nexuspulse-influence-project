@@ -3,13 +3,18 @@ import json
 import traceback
 from pydantic import BaseModel, Field
 from typing import List, Dict
-from dotenv import load_dotenv
 
-# Try to import CrewAI & Langchain modules
+# IMPORTANT: Load .env FIRST before any other imports
+from dotenv import load_dotenv
+load_dotenv()
+
+# Set CrewAI database path before importing
+os.environ["CREWAI_STORAGE_DIR"] = os.path.join(os.path.dirname(__file__), ".crewai_storage")
+
+# Try to import CrewAI modules - using ChatOpenAI for Google's OpenAI-compatible endpoint
 try:
-    # CrewAI & Langchain imports
     from crewai import Agent, Task, Crew, Process
-    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_openai import ChatOpenAI
     from langchain_core.tools import Tool
     from langchain_community.utilities import GoogleSearchAPIWrapper
     CREWAI_AVAILABLE = True
@@ -20,14 +25,11 @@ except Exception as e:
     print(f"⚠️ Failed to import CrewAI modules: {e}")
     CREWAI_AVAILABLE = False
 
-# 1. Environment & Proxy Setup (Vercel Compatible)
-if not os.environ.get("VERCEL"):
-    print("💻 Local Dev: Setting up proxy...")
-    # USER: Change 7890 to your local proxy port if needed
-    os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890"
-    os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890"
-
-load_dotenv()
+# 1. Proxy Setup - Use system proxy if available (global proxy mode)
+# If you have global proxy enabled, no need to configure here
+USE_PROXY = os.environ.get("USE_PROXY", "false").lower() == "true"
+if USE_PROXY:
+    print(f"💻 USE_PROXY is enabled, but using system global proxy instead")
 
 # Initialize Supabase
 supabase = None
@@ -45,22 +47,41 @@ except ImportError:
 except Exception as e:
     print(f"⚠️ Failed to initialize Supabase: {e}")
 
-# 2. Initialize Gemini LLM
-# We use Gemini 1.5 Pro as the core brain for both agents
+# 2. Initialize LLM using ChatOpenAI pointing to Google's OpenAI-compatible endpoint
+# This is the most stable approach for Pydantic structured outputs with CrewAI
 llm = None
 if CREWAI_AVAILABLE:
     try:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-pro",
-            google_api_key=os.environ.get("GEMINI_API_KEY"),
-            temperature=0.2
+        google_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not google_key:
+            raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY not found in environment variables")
+        
+        # Configure httpx client with proxy for Google API only
+        http_client = None
+        if USE_PROXY and PROXY_URL:
+            import httpx
+            http_client = httpx.Client(proxy=PROXY_URL)
+            print(f"   Using proxy for LLM requests: {PROXY_URL}")
+        
+        # Use ChatOpenAI client with Google's OpenAI-compatible endpoint
+        # This bypasses all Gemini wrapper compatibility issues
+        llm = ChatOpenAI(
+            model="gemini-2.0-flash",
+            api_key=google_key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            temperature=0.2,
+            http_client=http_client
         )
-        print("✅ Gemini LLM initialized")
+        print("✅ LLM initialized via ChatOpenAI (Google OpenAI-compatible endpoint)")
+        print(f"   Model: gemini-2.0-flash")
+        print(f"   API Key present: {google_key[:10]}...")
     except Exception as e:
-        print(f"⚠️ Failed to initialize Gemini LLM: {e}")
+        print(f"⚠️ Failed to initialize LLM: {e}")
+        import traceback
+        traceback.print_exc()
         CREWAI_AVAILABLE = False
 else:
-    print("⚠️ Skipping Gemini LLM initialization: CrewAI not available")
+    print("⚠️ Skipping LLM initialization: CrewAI not available")
 
 # 3. Pydantic Schemas (STRICT FRONTEND CONTRACT)
 class DashboardAgent(BaseModel):
@@ -96,16 +117,16 @@ def generate_focus_topic(product: str, persona: str) -> dict:
 # ==========================================
 # MAIN ORCHESTRATOR: CREWAI EXECUTION
 # ==========================================
-def analyze_with_llm(components: dict) -> dict:
+def analyze_with_llm(components: dict, feishu_context: str = "") -> dict:
     topic = components.get("focus_topic", components.get("product", "Unknown Product"))
     market = components.get("target_market", components.get("market", "US"))
     
-    if not CREWAI_AVAILABLE:
-        print(f"⚠️ CrewAI not available, using fallback for: {topic} in {market}")
+    if not CREWAI_AVAILABLE or not llm:
+        print(f"⚠️ CrewAI or LLM not available, using fallback for: {topic} in {market}")
         return {
             "structured_data": {
                 "verdict": "CAUTION",
-                "final_summary": "CrewAI not available, using fallback analysis",
+                "final_summary": "CrewAI or LLM not available, using fallback analysis",
                 "agents": {
                     "selection": {"score": 50, "title": "选品内卷", "analysis": "CrewAI not available for detailed analysis"},
                     "culture": {"score": 50, "title": "本土盲区", "analysis": "CrewAI not available for detailed analysis"},
@@ -131,19 +152,17 @@ def analyze_with_llm(components: dict) -> dict:
     researcher = Agent(
         role='顶级跨境市场情报官 (Top-Tier Cross-border Market Intelligence Officer)',
         goal=f'利用全网检索能力，深挖 {topic} 在 {market} 市场的硬核量化数据，并撰写 2000 字的《麦肯锡式·简体中文行业深度调研报告》。',
-        backstory="""你是前麦肯锡合伙人。你必须完全站在跨境企业老板的“生死视角”进行调研。
+        backstory="""你是前麦肯锡合伙人。你必须完全站在跨境企业老板的"生死视角"进行调研。
         你必须深挖以下5个维度的量化数据：
         1. 合规风控 (FDA/CE强制认证, TRO侵权案例, VAT稽查)
         2. 供应链 (DOS库存周转天数预估, 头程海运时效)
         3. 选品内卷 (CR5集中度, 毛利率, CPC均值)
         4. 本土化 (文化翻车案例, 广告合规)
         5. 品控 (退货率, VP差评核心原因)。
-        禁止说“市场很大”，必须给出具体的 CAGR、市场规模、售价区间。所有关键数据必须带括号引用，如 (Source: Amazon Data 2024)。""",
+        禁止说"市场很大"，必须给出具体的 CAGR、市场规模、售价区间。所有关键数据必须带括号引用，如 (Source: Amazon Data 2024)。""",
         verbose=True,
         allow_delegation=False,
         llm=llm
-        # Note: If you have Google Search API configured in Langchain, add tools=[search_tool] here.
-        # For now, Gemini 1.5 Pro has strong internal knowledge + native grounding capabilities.
     )
 
     # Define Agent 2: The Strategic Judge
@@ -165,8 +184,18 @@ def analyze_with_llm(components: dict) -> dict:
     )
 
     # Define Tasks
+    feishu_data_section = ""
+    if feishu_context:
+        feishu_data_section = f"""
+    
+    【重要：以下是从飞书多维表格获取的真实数据，请优先参考并使用这些数据进行分析】：
+    {feishu_context}
+    """
+    
     research_task = Task(
-        description=f"深度检索 {topic} ({market}市场) 的数据。输出一篇包含 SCQA 结构、3个真实竞品 Markdown 对比表格、以及 5 大痛点深度分析的 2000 字中文报告。",
+        description=f"""深度检索 {topic} ({market}市场) 的数据。{feishu_data_section}
+        
+        输出一篇包含 SCQA 结构、3个真实竞品 Markdown 对比表格、以及 5 大痛点深度分析的 2000 字中文报告。""",
         expected_output="A 2000-word Markdown report in Simplified Chinese with SCQA, Competitor Tables, and citations.",
         agent=researcher
     )
@@ -235,11 +264,14 @@ def analyze_with_llm(components: dict) -> dict:
             class Root,Target,Scene,Pain,Sol,Moat,Hook spine; class End final;
             linkStyle default stroke:{color},stroke-width:3px;"""
 
+        dashboard_agents = data.get('dashboard_agents', {})
+        
         return {
             "structured_data": {
                 "verdict": verdict,
                 "final_summary": data.get('final_summary', ''),
-                "agents": data.get('dashboard_agents', {}),
+                "dashboard_agents": dashboard_agents,
+                "agents": dashboard_agents,
                 "charts": {
                     "monthly_sentiment": data.get('monthly_sentiment', []),
                     "competitor_radar": data.get('competitor_radar', []),
@@ -247,7 +279,8 @@ def analyze_with_llm(components: dict) -> dict:
                 },
                 "mermaid_code": mermaid,
                 "news": [],
-                "full_report": deep_report
+                "full_report": deep_report,
+                "deep_report_markdown": deep_report
             }
         }
 

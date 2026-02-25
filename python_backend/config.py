@@ -105,6 +105,11 @@ class Settings(BaseSettings):
     ANSPIRE_BASE_URL: Optional[str] = Field("https://plugin.anspire.cn/api/ntsearch/search", description="Anspire AI 搜索BaseUrl")
     ANSPIRE_API_KEY: Optional[str] = Field(None, description="Anspire AI Search API（申请地址：https://open.anspire.cn/?share_code=3E1FUOUH）API密钥，用于Anspire搜索")
 
+    # ================== 飞书配置 ====================
+    FEISHU_APP_ID: Optional[str] = Field(None, description="飞书应用 App ID，用于飞书多维表格API认证")
+    FEISHU_APP_SECRET: Optional[str] = Field(None, description="飞书应用 App Secret，用于飞书多维表格API认证")
+    FEISHU_APP_TOKEN: Optional[str] = Field(None, description="飞书多维表格 App Token，用于指定默认操作的Bitable")
+
     
     # ================== Insight Engine 搜索配置 ====================
     DEFAULT_SEARCH_HOT_CONTENT_LIMIT: int = Field(100, description="热榜内容默认最大数")

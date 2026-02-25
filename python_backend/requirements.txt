@@ -13,7 +13,11 @@ flask-cors
 fastapi
 uvicorn
 supabase
-google-generativeai
+google-generativeai>=0.5.2
 crewai
 crewai-tools
-langchain-google-genai
+langchain-openai
+langchain-google-genai>=1.0.3
+langchain-core
+langchain-community
+lark-oapi>=1.0.0
