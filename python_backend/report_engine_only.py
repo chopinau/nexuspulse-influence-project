@@ -49,6 +49,7 @@ except Exception as e:
 
 # 2. Initialize LLM using ChatOpenAI pointing to Google's OpenAI-compatible endpoint
 # This is the most stable approach for Pydantic structured outputs with CrewAI
+# Note: If using global proxy (like V2Ray system proxy), it will work automatically
 llm = None
 if CREWAI_AVAILABLE:
     try:
@@ -56,21 +57,13 @@ if CREWAI_AVAILABLE:
         if not google_key:
             raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY not found in environment variables")
         
-        # Configure httpx client with proxy for Google API only
-        http_client = None
-        if USE_PROXY and PROXY_URL:
-            import httpx
-            http_client = httpx.Client(proxy=PROXY_URL)
-            print(f"   Using proxy for LLM requests: {PROXY_URL}")
-        
         # Use ChatOpenAI client with Google's OpenAI-compatible endpoint
         # This bypasses all Gemini wrapper compatibility issues
         llm = ChatOpenAI(
             model="gemini-2.0-flash",
             api_key=google_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-            temperature=0.2,
-            http_client=http_client
+            temperature=0.2
         )
         print("✅ LLM initialized via ChatOpenAI (Google OpenAI-compatible endpoint)")
         print(f"   Model: gemini-2.0-flash")
